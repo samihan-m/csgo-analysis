@@ -11,6 +11,9 @@ from awpy.analytics import nav
 import networkx as nx
 import scipy.spatial
 from tqdm import tqdm
+import models
+import numpy as np
+from awpy.data import NAV_GRAPHS
 
 def plot_navigation_mesh(map_name: str, map_type: str, dark: bool) -> tuple[Figure, Axes]:
     """
@@ -60,7 +63,7 @@ def plot_first_round(demo_file_data, output_file_name: str) -> None:
 
 def plot_round(
     filename: str, 
-    frames: list[dict], 
+    frames: list[models.Frame], 
     map_name: str, 
     map_type: str, 
     dark: bool = False, 
@@ -84,51 +87,8 @@ def plot_round(
     os.mkdir("csgo_tmp")
     image_files = []
     with tqdm(total=len(frames), desc = "Drawing frames: ") as progress_bar:
-        for i, f in enumerate(frames):
-            positions = []
-            colors = []
-            markers = []
-            # Plot bomb
-            # Thanks to https://github.com/pablonieto0981 for adding this code!
-            if f["bomb"]:
-                colors.append("orange")
-                markers.append("8")
-                pos = (
-                    f["bomb"]["x"],
-                    f["bomb"]["y"],
-                    f["bomb"]["z"],
-                )
-                positions.append(pos)
-            else:
-                pass
-            # Plot players
-            for side in ["ct", "t"]:
-                for p in f[side]["players"]:
-                    if side == "ct":
-                        colors.append("cyan")
-                    else:
-                        colors.append("red")
-                    if p["hp"] == 0:
-                        markers.append("x")
-                    else:
-                        markers.append(".")
-                    pos = (
-                        # plot.position_transform(map_name, p["x"], "x"),
-                        # plot.position_transform(map_name, p["y"], "y"),
-                        p["x"],
-                        p["y"],
-                        p["z"]
-                    )
-                    positions.append(pos)
-            f, a = plot_positions(
-                positions=positions,
-                colors=colors,
-                markers=markers,
-                map_name=map_name,
-                map_type=map_type,
-                dark=dark,
-                show_tiles=show_tiles
-            )
+        for i, frame in enumerate(frames):
+            f, a = plot_frame(frame, map_name, map_type, dark, show_tiles)
             image_files.append("csgo_tmp/{}.png".format(i))
             f.savefig(image_files[-1], dpi=300, bbox_inches="tight")
             plt.close()
@@ -139,6 +99,80 @@ def plot_round(
     imageio.mimsave(filename, images)
     shutil.rmtree("csgo_tmp/")
     return True
+
+def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, show_tiles: bool = True) -> tuple[Figure, Axes]:
+    """
+    Plots a frame and returns the figure and axes. CTs are blue, Ts are orange, and the bomb is an octagon.
+    """
+    if show_tiles is True:
+        f, a = plot_navigation_mesh(map_name, map_type, dark)
+    else:
+        f, a = plot.plot_map(map_name, map_type, dark)
+
+    if frame.bomb is not None:
+        bomb_x = plot.position_transform(map_name, frame.bomb.x, "x")
+        bomb_y = plot.position_transform(map_name, frame.bomb.y, "y")
+        a.scatter(x=bomb_x, y=bomb_y, c="orange", marker="8")
+
+    color: str
+    player_group: list[models.PlayerFrameState]
+    for color, player_group in [("cyan", frame.ct.players), ("red", frame.t.players)]:
+        for index, player in enumerate(player_group):
+            player_x = plot.position_transform(map_name, player.x, "x")
+            player_y = plot.position_transform(map_name, player.y, "y")
+
+            if player.hp > 0:
+                a.scatter(x=player_x, y=player_y, c=color, marker=".")
+
+                # This is to lengthen the vector so it is more easily seen on the map
+                VIEW_VECTOR_CONSTANT = 60
+                # player_view_x is degrees above/below horizon, player_view_y is degrees to the left/right
+                player_view_x: float = VIEW_VECTOR_CONSTANT*np.cos(player.view_y)
+                player_view_y: float = VIEW_VECTOR_CONSTANT*np.sin(player.view_y)
+                a.arrow(x=player_x, dx=player_view_x, y=player_y, dy=player_view_y, color=color, width=0.00005)
+
+                # Draw lines between this player and other alive players
+                for player2 in [p for p in player_group[index:] if p.hp > 0]:
+                    player2_x = plot.position_transform(map_name, player2.x, "x")
+                    player2_y = plot.position_transform(map_name, player2.y, "y")
+                    x_values = [player_x, player2_x]
+                    y_values = [player_y, player2_y]
+                    a.plot(x_values, y_values, c=color, linestyle="--", linewidth="0.4")
+
+            else:
+                a.scatter(x=player_x, y=player_y, c=color, marker="x")
+
+    # Graph time. TODO: Iteratively grow zones of control for each team 
+    # (after setting each player's current position as in their control (if there are no enemies in the tile))
+
+    # map_graph = 
+
+
+    return f, a
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# old code
+
+
+
 
 def plot_positions(
     positions: list,

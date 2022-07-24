@@ -20,8 +20,8 @@ class View:
     """
     Where a player is looking
     """
-    x: float
-    y: float
+    x: float # degrees above/below horizon (straight down is 90, straight up is 270)
+    y: float # degrees left/right (looking straight east is 0, north is 90, west is 180, south is 270)
 
     def __str__(self) -> str:
         return f"({self.x}, {self.y})"
