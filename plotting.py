@@ -63,7 +63,7 @@ def plot_first_round(demo_file_data, output_file_name: str) -> None:
 
 def plot_round(
     filename: str, 
-    frames: list[models.Frame], 
+    round: models.Round, 
     map_name: str, 
     map_type: str, 
     dark: bool = False, 
@@ -86,9 +86,13 @@ def plot_round(
         shutil.rmtree("csgo_tmp/")
     os.mkdir("csgo_tmp")
     image_files = []
+    frames = round.frames
+    grenade_throwers: dict[tuple[float, float, float], str] = {
+        (g.grenade_x, g.grenade_y, g.grenade_z): g.thrower_side for g in round.grenades
+    }
     with tqdm(total=len(frames), desc = "Drawing frames: ") as progress_bar:
         for i, frame in enumerate(frames):
-            f, a = plot_frame(frame, map_name, map_type, dark, show_tiles)
+            f, a = plot_frame(frame, grenade_throwers, map_name, map_type, dark, show_tiles)
             image_files.append("csgo_tmp/{}.png".format(i))
             f.savefig(image_files[-1], dpi=300, bbox_inches="tight")
             plt.close()
@@ -100,7 +104,7 @@ def plot_round(
     shutil.rmtree("csgo_tmp/")
     return True
 
-def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, show_tiles: bool = True) -> tuple[Figure, Axes]:
+def plot_frame(frame: models.Frame, grenade_throwers: dict[int, str], map_name: str, map_type: str, dark: bool, show_tiles: bool = True) -> tuple[Figure, Axes]:
     """
     Plots a frame and returns the figure and axes. CTs are blue, Ts are orange, and the bomb is an octagon.
     """
@@ -117,15 +121,26 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
     # TODO: If possible, add a CT highlight to things spawned by CT's and a T highlight to things spawned by T's
     # TODO: Resize markers to match how big they are in game if necessary
 
+    def get_thrower_of_closest_grenade(x: float, y: float, z: float) -> str:
+        """
+        Given a grenade's x, y, z coordinates, find the thrower of the closest grenade
+        """
+        closest_grenade_id = min(grenade_throwers, key=lambda g: (g[0] - x)**2 + (g[1] - y)**2 + (g[2] - z)**2)
+        return grenade_throwers[closest_grenade_id]
+
     for smoke in frame.smokes:
         smoke_x: float = plot.position_transform(map_name, smoke.x, "x")
         smoke_y: float = plot.position_transform(map_name, smoke.y, "y")
-        a.scatter(x=smoke_x, y=smoke_y, c="grey", marker=".", edgecolors="white", s=400,)
+        owner = get_thrower_of_closest_grenade(smoke.x, smoke.y, smoke.z)
+        outline_color = "cyan" if owner == "CT" else "orange" if owner == "T" else "black"
+        a.scatter(x=smoke_x, y=smoke_y, c="grey", marker=".", edgecolors=outline_color, s=400,)
 
     for fire in frame.fires:
         fire_x: float = plot.position_transform(map_name, fire.x, "x")
         fire_y: float = plot.position_transform(map_name, fire.y, "y")
-        a.scatter(x=fire_x, y=fire_y, c="red", marker=".", s=400)
+        owner = get_thrower_of_closest_grenade(fire.x, fire.y, fire.z)
+        outline_color = "cyan" if owner == "CT" else "orange" if owner == "T" else "black"
+        a.scatter(x=fire_x, y=fire_y, c="red", marker=".", edgecolors=outline_color, s=400)
 
     ct_visible_areas: set[int] = set()
     t_visible_areas: set[int] = set()
@@ -145,13 +160,20 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
                 # They will not be blocked by smokes
                 # Does not include areas behind somebody that are "covered" because there is no way something can get behind them
                 # (e.g. top left corner of the dust2 gif)
+                
+                # TODO: Add more raycast lines from a player
+                # assume each player has a 60 degree FOV and cast out lines 30 degrees +- from the player's view vector
+
+                # TODO: Faster raycast method
+                # Make steps way larger, and if we go out of bounds, then 'revert' and decrease step size and try again
+                # Minimum step size will be 1*np.cos(yaw), 1*np.sin(yaw)
 
                 # Raycast test!
                 # Draw a point at the first wall the player's view vector hits
                 player_area_id: int = nav.find_closest_area(map_name, (player.x, player.y, player.z)).get("areaId", None)
                 if player_area_id is not None:
                     final_area_id: int = player_area_id
-                    STEP_CONSTANT: int = 1
+                    STEP_CONSTANT: int = 0.01
                     yaw_in_radians = np.deg2rad(player.view_x)
                     dx: float = np.cos(yaw_in_radians)/STEP_CONSTANT
                     dy: float = np.sin(yaw_in_radians)/STEP_CONSTANT
@@ -162,6 +184,7 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
                         iteration_count += 1
                         do_end_raycast = True
                         for area_id in NAV[map_name].keys():
+                            # TODO: Add check for if the point is within a smoke
                             # If we have gone out of bounds then we probably are in a wall or something so this is our "collision!"
                             if nav.point_in_area(map_name, area_id, next_point):
                                 do_end_raycast = False
