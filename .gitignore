@@ -157,3 +157,4 @@ demos/
 *.json
 *.csv
 *.gif
+csgo_tmp/

@@ -1,10 +1,123 @@
 from awpy.analytics import nav
 from scipy.spatial import ConvexHull
-from dataclasses import dataclass
 from dataclasses_json import dataclass_json
 from awpy.data import NAV
 import networkx as nx
 from tqdm import tqdm
+
+import models
+import numpy as np
+from dataclasses import dataclass, field
+
+@dataclass
+class VisionTraceResults:
+    """
+    Contains information about the results of a vision ray cast.
+    The first angle in angled_traced is a straight line forward from where the player is looking.
+    (and the first value in end_points is the first wall the player's vision ray encounters.)
+    """
+    angles_traced: list[float] = field(default_factory=list) # In degrees
+    end_points: list[tuple[float, float, float]] = field(default_factory=list)
+    visible_area_ids: list[int] = field(default_factory=list)
+
+def trace_vision(player: models.PlayerFrameState, frame: models.Frame, map_name: str, fov: int = 90, ray_count: int = 30, step_size: int = 50) -> VisionTraceResults:
+    """
+    Given a player position and view angle, trace multiple lines in their vision cone. Returns a VisionTraceResults object.
+    fov is (in degrees) how large the "vision cone" is.
+    ray_count is the number of lines to draw, the more lines, the more accurate the results but the slower the function.
+    step_size is how far along each line we check to see if the line has collided with something - 
+        the more steps, the more accurate the results but the slower the function.
+    """
+    trace_results: VisionTraceResults = VisionTraceResults()
+
+    visible_area_ids: set[int] = set()
+
+    player_area_id: int = nav.find_closest_area(map_name, (player.x, player.y, player.z)).get("areaId", None)
+    if player_area_id is None:
+        return list(visible_area_ids)
+    visible_area_ids.add(player_area_id)
+
+    angles_to_trace: list[float] = [player.view_x]
+    angles_to_trace.extend([player.view_x + i for i in range(int(-fov/2), int(fov/2 + 1), int(fov/ray_count))])
+
+    trace_results.angles_traced = angles_to_trace
+
+    angles_to_trace = np.deg2rad(angles_to_trace)
+
+    def is_point_in_smoke(x: float, y: float, z: float) -> bool:
+        """
+        Given a point, returns if it is in a smoke or not
+        """
+        SMOKE_RADIUS: int = 144 # Taken from CS:GO wiki
+        for smoke in frame.smokes:
+            x_bounds: list[float] = [smoke.x - SMOKE_RADIUS, smoke.x + SMOKE_RADIUS]
+            y_bounds: list[float] = [smoke.y - SMOKE_RADIUS, smoke.y + SMOKE_RADIUS]
+            z_bounds: list[float] = [smoke.z - SMOKE_RADIUS, smoke.z + SMOKE_RADIUS]
+            if any([x_bounds[0] <= x <= x_bounds[1], y_bounds[0] <= y <= y_bounds[1], z_bounds[0] <= z <= z_bounds[1]]):
+                return True
+
+        return False
+
+    for angle in angles_to_trace:
+        dx: float = np.cos(angle)*step_size
+        dy: float = np.sin(angle)*step_size
+        next_point: tuple[float, float, float] = (player.x, player.y, player.z)
+        do_end_raycast: bool = False
+        iteration_count: int = 0
+        while do_end_raycast is False:
+            iteration_count += 1
+            do_end_raycast = True
+            for area_id in NAV[map_name].keys():
+                # If we have gone out of bounds then we probably are in a wall or something so this is our "collision!"
+                if (
+                    nav.point_in_area(map_name, area_id, next_point) is True and
+                    is_point_in_smoke(next_point[0], next_point[1], next_point[2]) is False
+                ):
+                    do_end_raycast = False
+                    next_point = (player.x + iteration_count*dx, player.y + iteration_count*dy, player.z)
+                    visible_area_ids.add(area_id)
+
+        trace_results.end_points.append(next_point)
+    
+    trace_results.visible_area_ids = list(visible_area_ids)
+
+    return trace_results
+
+# def get_team_covered_areas(team: models.TeamFrameState, frame: models.Frame, map_name: str) -> list[int]:
+#     """
+#     Returns a list of ids for 'covered' areas 
+#     An area is covered if a player is inside it or if it is in their vision
+#     """
+#     covered_areas: set[int] = {}
+    
+#     for player in team.players:
+#         if player.hp <= 0:
+#             continue
+#         trace_results: dict = trace_vision(player, frame, map_name)
+#         covered_areas.update(trace_results["visible_area_ids"])
+
+#     return list(covered_areas)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 @dataclass_json
 @dataclass
