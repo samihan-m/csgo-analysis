@@ -114,8 +114,8 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
         bomb_y = plot.position_transform(map_name, frame.bomb.y, "y")
         a.scatter(x=bomb_x, y=bomb_y, c="yellow", marker="8")
 
-    # TODO: Make smoke/fire circles bigger to be more accurate to how much area they take up in game
-    # Trying s = 200 (200% of normal scatter plot point size?)
+    # TODO: If possible, add a CT highlight to things spawned by CT's and a T highlight to things spawned by T's
+    # TODO: Resize markers to match how big they are in game if necessary
 
     for smoke in frame.smokes:
         smoke_x: float = plot.position_transform(map_name, smoke.x, "x")
@@ -127,6 +127,9 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
         fire_y: float = plot.position_transform(map_name, fire.y, "y")
         a.scatter(x=fire_x, y=fire_y, c="red", marker=".", s=400)
 
+    ct_visible_areas: set[int] = set()
+    t_visible_areas: set[int] = set()
+
     color: str
     player_group: list[models.PlayerFrameState]
     for color, player_group in [("cyan", frame.ct.players), ("orange", frame.t.players)]:
@@ -137,22 +140,11 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
             if player.hp > 0:
                 a.scatter(x=player_x, y=player_y, c=color, marker=".")
 
-                # player_view_x is degrees to the left/right (YAW), player_view_y is degrees above/below horizon (PITCH)
-                yaw_in_radians = np.deg2rad(360 - player.view_x)
-                cartesian_player_view_x: float = np.cos(yaw_in_radians)
-                cartesian_player_view_y: float = np.sin(yaw_in_radians)
-                # print(player.view_x, cartesian_player_view_x, cartesian_player_view_y)
-
-                # This is to lengthen the vector so it is more easily seen on the map
-                VIEW_VECTOR_CONSTANT = 50
-                a.arrow(
-                    x=player_x, 
-                    dx=VIEW_VECTOR_CONSTANT*cartesian_player_view_x, 
-                    y=player_y, 
-                    dy=VIEW_VECTOR_CONSTANT*cartesian_player_view_y, 
-                    color=color, 
-                    width=0.00005
-                )
+                # TODO: Ray cast issues: 
+                # Sometimes they end too early (like sitting behind the car on dust2 shouldn't count as completely obstructing vision)
+                # They will not be blocked by smokes
+                # Does not include areas behind somebody that are "covered" because there is no way something can get behind them
+                # (e.g. top left corner of the dust2 gif)
 
                 # Raycast test!
                 # Draw a point at the first wall the player's view vector hits
@@ -160,22 +152,31 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
                 if player_area_id is not None:
                     final_area_id: int = player_area_id
                     STEP_CONSTANT: int = 1
-                    dx: float = cartesian_player_view_x/STEP_CONSTANT
-                    dy: float = cartesian_player_view_y/STEP_CONSTANT
-                    next_point: tuple[float, float, float] = (player.x + dx, player.y + dy, player.z)
+                    yaw_in_radians = np.deg2rad(player.view_x)
+                    dx: float = np.cos(yaw_in_radians)/STEP_CONSTANT
+                    dy: float = np.sin(yaw_in_radians)/STEP_CONSTANT
+                    next_point: tuple[float, float, float] = (player.x, player.y, player.z)
                     do_end_raycast: bool = False
                     iteration_count: int = 0
                     while do_end_raycast is False:
                         iteration_count += 1
-                        closest_area_id: int = nav.find_closest_area(map_name, next_point)["areaId"]
-                        # If we have gone out of bounds then we probably are in a wall or something so this is our "collision!"
-                        if nav.point_in_area(map_name, closest_area_id, next_point) is False:
-                            do_end_raycast = True
-                        else:
-                            final_area_id = closest_area_id
-                            next_point = (next_point[0] + dx, next_point[1] + dy, next_point[2])
+                        do_end_raycast = True
+                        for area_id in NAV[map_name].keys():
+                            # If we have gone out of bounds then we probably are in a wall or something so this is our "collision!"
+                            if nav.point_in_area(map_name, area_id, next_point):
+                                do_end_raycast = False
+                                next_point = (player.x + iteration_count*dx, player.y + iteration_count*dy, player.z)
+                                if color == "cyan":
+                                    ct_visible_areas.add(area_id)
+                                elif color == "orange":
+                                    t_visible_areas.add(area_id)
+                                final_area_id = area_id
+
                     viewmarker_x: float = plot.position_transform(map_name, next_point[0], "x")
                     viewmarker_y: float = plot.position_transform(map_name, next_point[1], "y")
+
+                    a.plot([player_x, viewmarker_x], [player_y, viewmarker_y], c=color, linestyle="--", linewidth=0.5)
+
                     a.scatter(x=viewmarker_x, y=viewmarker_y, c=color, marker="2")
                     # print(f"Raycast iteration count: {iteration_count}")
 
@@ -185,7 +186,7 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
                     player2_y = plot.position_transform(map_name, player2.y, "y")
                     x_values = [player_x, player2_x]
                     y_values = [player_y, player2_y]
-                    a.plot(x_values, y_values, c=color, linestyle="--", linewidth="0.4")
+                    a.plot(x_values, y_values, c=color, linestyle="dotted", linewidth="0.4")
 
             else:
                 a.scatter(x=player_x, y=player_y, c=color, marker="x")
@@ -195,14 +196,14 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
 
     map_graph: nx.Graph = NAV_GRAPHS[map_name]
 
-    ct_player_area_ids: set[int] = {
+    ct_occupied_area_ids: set[int] = {
         nav.find_closest_area(map_name, (player.x, player.y, player.z)).get("areaId", None) for player in frame.ct.players if player.hp > 0
     }
-    t_player_area_ids: set[int] = {
+    t_occupied_area_ids: set[int] = {
         nav.find_closest_area(map_name, (player.x, player.y, player.z)).get("areaId", None) for player in frame.t.players if player.hp > 0
     }
-    ct_zone_ids: set[int] = ct_player_area_ids - t_player_area_ids
-    t_zone_ids: set[int] = t_player_area_ids - ct_player_area_ids
+    ct_covered_area_ids: set[int] = ct_occupied_area_ids.difference(t_occupied_area_ids).union(ct_visible_areas)
+    t_covered_area_ids: set[int] = t_occupied_area_ids.difference(ct_occupied_area_ids).union(t_visible_areas)
 
     # initialize graph with the base positions of each team
     # (where they are standing)
@@ -212,14 +213,14 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
     for node in map_graph.nodes(data=True):
         area_id: int = node[0]
         node_data: dict = node[1]
-        if node_data["areaID"] in ct_zone_ids:
+        if node_data["areaID"] in ct_covered_area_ids:
             node_data["controlling_side"] = "CT"
             # Note: to add all immediate neighbors, uncomment this: 
             # for neighbor in map_graph.neighbors(area_id):
             #     neighbor_data: dict = map_graph.nodes[neighbor]
             #     if neighbor_data["controlling_side"] is None:
             #         neighbor_data["controlling_side"] = "CT"
-        elif node_data["areaID"] in t_zone_ids:
+        elif node_data["areaID"] in t_covered_area_ids:
             node_data["controlling_side"] = "T"
             # Note: to add all immediate neighbors, uncomment this: 
             # for neighbor in map_graph.neighbors(area_id):
@@ -248,12 +249,12 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
                     t_zone_neighbor_count += 1
             if ct_zone_neighbor_count >= 2 and t_zone_neighbor_count == 0:
                 node_data["controlling_side"] = "CT"
-                ct_zone_ids.add(node_data["areaID"])
+                ct_covered_area_ids.add(node_data["areaID"])
                 # print(f"Zone {node_data['areaID']} is neighbored by 2+ CT zones (formerly controlled by {node_data.get('controlling_side', None)})")
                 graph_did_change = True
             elif t_zone_neighbor_count >= 2 and ct_zone_neighbor_count == 0:
                 node_data["controlling_side"] = "T"
-                t_zone_ids.add(node_data["areaID"])
+                t_covered_area_ids.add(node_data["areaID"])
                 # print(f"Zone {node_data['areaID']} is neighbored by 2+ T zones (formerly controlled by {node_data.get('controlling_side', None)})")
                 graph_did_change = True
 
