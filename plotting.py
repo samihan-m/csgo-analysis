@@ -112,24 +112,69 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
     if frame.bomb is not None:
         bomb_x = plot.position_transform(map_name, frame.bomb.x, "x")
         bomb_y = plot.position_transform(map_name, frame.bomb.y, "y")
-        a.scatter(x=bomb_x, y=bomb_y, c="orange", marker="8")
+        a.scatter(x=bomb_x, y=bomb_y, c="yellow", marker="8")
+
+    # TODO: Make smoke/fire circles bigger to be more accurate to how much area they take up in game
+
+    for smoke in frame.smokes:
+        smoke_x: float = plot.position_transform(map_name, smoke.x, "x")
+        smoke_y: float = plot.position_transform(map_name, smoke.y, "y")
+        a.scatter(x=smoke_x, y=smoke_y, c="black", marker=".")
+
+    for fire in frame.fires:
+        fire_x: float = plot.position_transform(map_name, fire.x, "x")
+        fire_y: float = plot.position_transform(map_name, fire.y, "y")
+        a.scatter(x=fire_x, y=fire_y, c="red", marker=".")
 
     color: str
     player_group: list[models.PlayerFrameState]
-    for color, player_group in [("cyan", frame.ct.players), ("red", frame.t.players)]:
+    for color, player_group in [("cyan", frame.ct.players), ("orange", frame.t.players)]:
         for index, player in enumerate(player_group):
-            player_x = plot.position_transform(map_name, player.x, "x")
-            player_y = plot.position_transform(map_name, player.y, "y")
+            player_x: float = plot.position_transform(map_name, player.x, "x")
+            player_y: float = plot.position_transform(map_name, player.y, "y")
 
             if player.hp > 0:
                 a.scatter(x=player_x, y=player_y, c=color, marker=".")
 
+                # player_view_x is degrees to the left/right (YAW), player_view_y is degrees above/below horizon (PITCH)
+                yaw_in_radians = np.deg2rad(player.view_x)
+                cartesian_player_view_x: float = np.cos(yaw_in_radians)
+                cartesian_player_view_y: float = np.sin(yaw_in_radians)
+                # print(player.view_x, cartesian_player_view_x, cartesian_player_view_y)
+
                 # This is to lengthen the vector so it is more easily seen on the map
-                VIEW_VECTOR_CONSTANT = 60
-                # player_view_x is degrees above/below horizon, player_view_y is degrees to the left/right
-                player_view_x: float = VIEW_VECTOR_CONSTANT*np.cos(player.view_y)
-                player_view_y: float = VIEW_VECTOR_CONSTANT*np.sin(player.view_y)
-                a.arrow(x=player_x, dx=player_view_x, y=player_y, dy=player_view_y, color=color, width=0.00005)
+                VIEW_VECTOR_CONSTANT = 50
+                a.arrow(
+                    x=player_x, 
+                    dx=VIEW_VECTOR_CONSTANT*cartesian_player_view_x, 
+                    y=player_y, 
+                    dy=VIEW_VECTOR_CONSTANT*cartesian_player_view_y, 
+                    color=color, 
+                    width=0.00005
+                )
+
+                # Raycast test!
+                # Draw a point at the first wall the player's view vector hits
+                player_area_id: int = nav.find_closest_area(map_name, (player.x, player.y, player.z)).get("areaId", None)
+                if player_area_id is not None:
+                    final_area_id: int = player_area_id
+                    STEP_CONSTANT: int = 1
+                    dx: float = cartesian_player_view_x/STEP_CONSTANT
+                    dy: float = cartesian_player_view_y/STEP_CONSTANT
+                    next_point: tuple[float, float, float] = (player_x + dx, player_y + dy, player.z)
+                    do_end_raycast: bool = False
+                    iteration_count: int = 0
+                    while do_end_raycast is False:
+                        iteration_count += 1
+                        closest_area_id: int = nav.find_closest_area(map_name, next_point)["areaId"]
+                        # If we have gone out of bounds then we probably are in a wall or something so this is our "collision!"
+                        if nav.point_in_area(map_name, closest_area_id, next_point) is False:
+                            do_end_raycast = True
+                        else:
+                            final_area_id = closest_area_id
+                            next_point = (next_point[0] + dx, next_point[1] + dy, next_point[2])
+                    a.scatter(x=next_point[0], y=next_point[1], c=color, marker="2")
+                    # print(f"Raycast iteration count: {iteration_count}")
 
                 # Draw lines between this player and other alive players
                 for player2 in [p for p in player_group[index:] if p.hp > 0]:
@@ -155,41 +200,59 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
     }
     ct_zone_ids: set[int] = ct_player_area_ids - t_player_area_ids
     t_zone_ids: set[int] = t_player_area_ids - ct_player_area_ids
+
+    # initialize graph with the base positions of each team
+    # (where they are standing)
+    for node in map_graph.nodes(data=True):
+        node_data: dict = node[1]
+        node_data["controlling_side"] = None
+    for node in map_graph.nodes(data=True):
+        area_id: int = node[0]
+        node_data: dict = node[1]
+        if node_data["areaID"] in ct_zone_ids:
+            node_data["controlling_side"] = "CT"
+            # Note: to add all immediate neighbors, uncomment this: 
+            # for neighbor in map_graph.neighbors(area_id):
+            #     neighbor_data: dict = map_graph.nodes[neighbor]
+            #     if neighbor_data["controlling_side"] is None:
+            #         neighbor_data["controlling_side"] = "CT"
+        elif node_data["areaID"] in t_zone_ids:
+            node_data["controlling_side"] = "T"
+            # Note: to add all immediate neighbors, uncomment this: 
+            # for neighbor in map_graph.neighbors(area_id):
+            #     neighbor_data: dict = map_graph.nodes[neighbor]
+            #     if neighbor_data["controlling_side"] is None:
+            #         neighbor_data["controlling_side"] = "T"
+        else:
+            node_data["controlling_side"] = None
     
+    # Spread the zones of control as far as they should
     graph_did_change: bool = True
     while graph_did_change:
         graph_did_change = False
         for node in map_graph.nodes(data=True):
+            area_id: int = node[0]
             node_data: dict = node[1]
-            if node_data["areaID"] in ct_zone_ids:
-                if node_data.get("controlling_side", None) != "CT":
-                    # print(f"Zone {node_data['areaID']} is now controlled by CT (formerly {node_data.get('controlling_side', None)})")
-                    node_data["controlling_side"] = "CT"
-                    graph_did_change = True
-            elif node_data["areaID"] in t_zone_ids:
-                if node_data.get("controlling_side", None) != "T":
-                    # print(f"Zone {node_data['areaID']} is now controlled by TT (formerly {node_data.get('controlling_side', None)})")
-                    node_data["controlling_side"] = "T"
-                    graph_did_change = True
-            else:
-                ct_zone_neighbor_count: int = 0
-                t_zone_neighbor_count: int = 0
-                for neighbor in map_graph.neighbors(node[0]):
-                    neighbor_data: dict = map_graph.nodes[neighbor]
-                    if neighbor_data.get("controlling_side", None) == "CT":
-                        ct_zone_neighbor_count += 1
-                    elif neighbor_data.get("controlling_side", None) == "T":
-                        t_zone_neighbor_count += 1
-                if ct_zone_neighbor_count >= 2 and t_zone_neighbor_count == 0:
-                    # node_data["controlling_side"] = "CT"
-                    ct_zone_ids.add(node_data["areaID"])
-                    # print(f"Zone {node_data['areaID']} is neighbored by 2+ CT zones (formerly controlled by {node_data.get('controlling_side', None)})")
-                    graph_did_change = True
-                elif t_zone_neighbor_count >= 2 and ct_zone_neighbor_count == 0:
-                    # node_data["controlling_side"] = "T"
-                    # print(f"Zone {node_data['areaID']} is neighbored by 2+ T zones (formerly controlled by {node_data.get('controlling_side', None)})")
-                    t_zone_ids.add(node_data["areaID"])
-                    graph_did_change = True
+            ct_zone_neighbor_count: int = 0
+            t_zone_neighbor_count: int = 0
+            if node_data["controlling_side"] is not None:
+                continue
+            for neighbor in map_graph.neighbors(area_id):
+                neighbor_data: dict = map_graph.nodes[neighbor]
+                if neighbor_data["controlling_side"] == "CT":
+                    ct_zone_neighbor_count += 1
+                elif neighbor_data["controlling_side"] == "T":
+                    t_zone_neighbor_count += 1
+            if ct_zone_neighbor_count >= 2 and t_zone_neighbor_count == 0:
+                node_data["controlling_side"] = "CT"
+                ct_zone_ids.add(node_data["areaID"])
+                # print(f"Zone {node_data['areaID']} is neighbored by 2+ CT zones (formerly controlled by {node_data.get('controlling_side', None)})")
+                graph_did_change = True
+            elif t_zone_neighbor_count >= 2 and ct_zone_neighbor_count == 0:
+                node_data["controlling_side"] = "T"
+                t_zone_ids.add(node_data["areaID"])
+                # print(f"Zone {node_data['areaID']} is neighbored by 2+ T zones (formerly controlled by {node_data.get('controlling_side', None)})")
+                graph_did_change = True
 
     for node in map_graph.nodes(data=True):
         node_data: dict = node[1]
@@ -199,7 +262,7 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
         elif controlling_side == "CT":
             color = "cyan"
         elif controlling_side == "T":
-            color = "red"
+            color = "orange"
 
         area_id: int = node_data["areaID"]
         tile = NAV[map_name][area_id]
@@ -320,20 +383,20 @@ def plot_positions(
             rect = matplotlib.patches.Rectangle((southwest_x,southwest_y), width, height, linewidth=0.4, edgecolor=color, facecolor=color, alpha=0.3)
             a.add_patch(rect)
 
-    t_points = [(p[0], p[1]) for p, c, m in pcm if c == "red" and m != "x"]
+    t_points = [(p[0], p[1]) for p, c, m in pcm if c == "orange" and m != "x"]
     if len(t_points) > 2:
         t_hull = scipy.spatial.ConvexHull(t_points)
         t_poly = [t_points[i] for i in t_hull.vertices]
         # a.fill([p[0] for p in t_poly], [p[1] for p in t_poly], "red", alpha=0.3)
 
         covered_areas: set[int] = set()
-        t_coords: list[tuple[float, float, float]] = [p for p, c, m in pcm if c == "red" and m != "x"]
+        t_coords: list[tuple[float, float, float]] = [p for p, c, m in pcm if c == "orange" and m != "x"]
         for idx, p1 in enumerate(t_coords):
             for p2 in t_coords[idx+1:]:
                 area_ids = get_covered_area(map_name, p1, p2)
                 covered_areas.update(area_ids)
         for area in [area for area in NAV[map_name] if area in covered_areas]:
-            color = "red"
+            color = "orange"
             tile = NAV[map_name][area]
 
             x_se = plot.position_transform(map_name, tile["southEastX"], "x")

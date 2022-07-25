@@ -249,8 +249,8 @@ class PlayerFrameState:
     velocity_x: float
     velocity_y: float
     velocity_z: float
-    view_x: float # degrees above/below horizon (straight down is 90, straight up is 270)
-    view_y: float # degrees left/right (looking straight east is 0, north is 90, west is 180, south is 270)
+    view_x: float # degrees left/right (looking straight east is 0, north is 90, west is 180, south is 270) (YAW) 
+    view_y: float # degrees above/below horizon (straight down is 90, straight up is 270) (PITCH)
     hp: int
     armor: int
     active_weapon: str
