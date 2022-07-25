@@ -115,16 +115,17 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
         a.scatter(x=bomb_x, y=bomb_y, c="yellow", marker="8")
 
     # TODO: Make smoke/fire circles bigger to be more accurate to how much area they take up in game
+    # Trying s = 200 (200% of normal scatter plot point size?)
 
     for smoke in frame.smokes:
         smoke_x: float = plot.position_transform(map_name, smoke.x, "x")
         smoke_y: float = plot.position_transform(map_name, smoke.y, "y")
-        a.scatter(x=smoke_x, y=smoke_y, c="black", marker=".")
+        a.scatter(x=smoke_x, y=smoke_y, c="grey", marker=".", edgecolors="white", s=400,)
 
     for fire in frame.fires:
         fire_x: float = plot.position_transform(map_name, fire.x, "x")
         fire_y: float = plot.position_transform(map_name, fire.y, "y")
-        a.scatter(x=fire_x, y=fire_y, c="red", marker=".")
+        a.scatter(x=fire_x, y=fire_y, c="red", marker=".", s=400)
 
     color: str
     player_group: list[models.PlayerFrameState]
@@ -137,7 +138,7 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
                 a.scatter(x=player_x, y=player_y, c=color, marker=".")
 
                 # player_view_x is degrees to the left/right (YAW), player_view_y is degrees above/below horizon (PITCH)
-                yaw_in_radians = np.deg2rad(player.view_x)
+                yaw_in_radians = np.deg2rad(360 - player.view_x)
                 cartesian_player_view_x: float = np.cos(yaw_in_radians)
                 cartesian_player_view_y: float = np.sin(yaw_in_radians)
                 # print(player.view_x, cartesian_player_view_x, cartesian_player_view_y)
@@ -161,7 +162,7 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
                     STEP_CONSTANT: int = 1
                     dx: float = cartesian_player_view_x/STEP_CONSTANT
                     dy: float = cartesian_player_view_y/STEP_CONSTANT
-                    next_point: tuple[float, float, float] = (player_x + dx, player_y + dy, player.z)
+                    next_point: tuple[float, float, float] = (player.x + dx, player.y + dy, player.z)
                     do_end_raycast: bool = False
                     iteration_count: int = 0
                     while do_end_raycast is False:
@@ -173,7 +174,9 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
                         else:
                             final_area_id = closest_area_id
                             next_point = (next_point[0] + dx, next_point[1] + dy, next_point[2])
-                    a.scatter(x=next_point[0], y=next_point[1], c=color, marker="2")
+                    viewmarker_x: float = plot.position_transform(map_name, next_point[0], "x")
+                    viewmarker_y: float = plot.position_transform(map_name, next_point[1], "y")
+                    a.scatter(x=viewmarker_x, y=viewmarker_y, c=color, marker="2")
                     # print(f"Raycast iteration count: {iteration_count}")
 
                 # Draw lines between this player and other alive players
