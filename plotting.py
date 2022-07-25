@@ -145,8 +145,76 @@ def plot_frame(frame: models.Frame, map_name: str, map_type: str, dark: bool, sh
     # Graph time. TODO: Iteratively grow zones of control for each team 
     # (after setting each player's current position as in their control (if there are no enemies in the tile))
 
-    # map_graph = 
+    map_graph: nx.Graph = NAV_GRAPHS[map_name]
 
+    ct_player_area_ids: set[int] = {
+        nav.find_closest_area(map_name, (player.x, player.y, player.z)).get("areaId", None) for player in frame.ct.players if player.hp > 0
+    }
+    t_player_area_ids: set[int] = {
+        nav.find_closest_area(map_name, (player.x, player.y, player.z)).get("areaId", None) for player in frame.t.players if player.hp > 0
+    }
+    ct_zone_ids: set[int] = ct_player_area_ids - t_player_area_ids
+    t_zone_ids: set[int] = t_player_area_ids - ct_player_area_ids
+    
+    graph_did_change: bool = True
+    while graph_did_change:
+        graph_did_change = False
+        for node in map_graph.nodes(data=True):
+            node_data: dict = node[1]
+            if node_data["areaID"] in ct_zone_ids:
+                if node_data.get("controlling_side", None) != "CT":
+                    # print(f"Zone {node_data['areaID']} is now controlled by CT (formerly {node_data.get('controlling_side', None)})")
+                    node_data["controlling_side"] = "CT"
+                    graph_did_change = True
+            elif node_data["areaID"] in t_zone_ids:
+                if node_data.get("controlling_side", None) != "T":
+                    # print(f"Zone {node_data['areaID']} is now controlled by TT (formerly {node_data.get('controlling_side', None)})")
+                    node_data["controlling_side"] = "T"
+                    graph_did_change = True
+            else:
+                ct_zone_neighbor_count: int = 0
+                t_zone_neighbor_count: int = 0
+                for neighbor in map_graph.neighbors(node[0]):
+                    neighbor_data: dict = map_graph.nodes[neighbor]
+                    if neighbor_data.get("controlling_side", None) == "CT":
+                        ct_zone_neighbor_count += 1
+                    elif neighbor_data.get("controlling_side", None) == "T":
+                        t_zone_neighbor_count += 1
+                if ct_zone_neighbor_count >= 2 and t_zone_neighbor_count == 0:
+                    # node_data["controlling_side"] = "CT"
+                    ct_zone_ids.add(node_data["areaID"])
+                    # print(f"Zone {node_data['areaID']} is neighbored by 2+ CT zones (formerly controlled by {node_data.get('controlling_side', None)})")
+                    graph_did_change = True
+                elif t_zone_neighbor_count >= 2 and ct_zone_neighbor_count == 0:
+                    # node_data["controlling_side"] = "T"
+                    # print(f"Zone {node_data['areaID']} is neighbored by 2+ T zones (formerly controlled by {node_data.get('controlling_side', None)})")
+                    t_zone_ids.add(node_data["areaID"])
+                    graph_did_change = True
+
+    for node in map_graph.nodes(data=True):
+        node_data: dict = node[1]
+        controlling_side = node_data.get("controlling_side", None)
+        if controlling_side is None:
+            continue
+        elif controlling_side == "CT":
+            color = "cyan"
+        elif controlling_side == "T":
+            color = "red"
+
+        area_id: int = node_data["areaID"]
+        tile = NAV[map_name][area_id]
+
+        x_se = plot.position_transform(map_name, tile["southEastX"], "x")
+        x_nw = plot.position_transform(map_name, tile["northWestX"], "x")
+        y_se = plot.position_transform(map_name, tile["southEastY"], "y")
+        y_nw = plot.position_transform(map_name, tile["northWestY"], "y")
+        width = (x_se - x_nw)
+        height = (y_nw - y_se)
+        southwest_x = x_nw
+        southwest_y = y_se   
+
+        rect = matplotlib.patches.Rectangle((southwest_x,southwest_y), width, height, linewidth=0.4, edgecolor=color, facecolor=color, alpha=0.3)
+        a.add_patch(rect)
 
     return f, a
 
