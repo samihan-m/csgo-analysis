@@ -1,10 +1,6 @@
 from awpy.analytics import nav
-from scipy.spatial import ConvexHull
-from dataclasses_json import dataclass_json
 from awpy.data import NAV
 import networkx as nx
-from tqdm import tqdm
-
 import models
 import numpy as np
 from dataclasses import dataclass, field
@@ -184,4 +180,3 @@ def grow_controlled_areas(frame: models.Frame, map_graph: nx.Graph) -> nx.Graph:
     #             graph_did_change = True
 
     return map_graph
-    
