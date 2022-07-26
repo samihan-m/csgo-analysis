@@ -20,7 +20,7 @@ class VisionTraceResults:
     end_points: list[tuple[float, float, float]] = field(default_factory=list)
     visible_area_ids: list[int] = field(default_factory=list)
 
-def trace_vision(player: models.PlayerFrameState, frame: models.Frame, map_name: str, fov: int = 90, ray_count: int = 30, step_size: int = 50) -> VisionTraceResults:
+def trace_vision(player: models.PlayerFrameState, frame: models.Frame, map_name: str, fov: int = 90, ray_count: int = 30, step_size: int = 10) -> VisionTraceResults:
     """
     Given a player position and view angle, trace multiple lines in their vision cone. Returns a VisionTraceResults object.
     fov is (in degrees) how large the "vision cone" is.
@@ -68,7 +68,7 @@ def trace_vision(player: models.PlayerFrameState, frame: models.Frame, map_name:
             iteration_count += 1
             do_end_raycast = True
             for area_id in NAV[map_name].keys():
-                # If we have gone out of bounds then we probably are in a wall or something so this is our "collision!"
+                # If we are not in an area then we have gone out of bounds (we probably are in a wall or something so this is our "collision")
                 if (
                     nav.point_in_area(map_name, area_id, next_point) is True and
                     is_point_in_smoke(next_point[0], next_point[1], next_point[2]) is False

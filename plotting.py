@@ -105,9 +105,10 @@ def plot_round(
     shutil.rmtree("csgo_tmp/")
     return True
 
-def plot_frame(frame: models.Frame, grenade_throwers: dict[int, str], map_name: str, map_type: str, dark: bool, show_tiles: bool = True) -> tuple[Figure, Axes]:
+def plot_frame(frame: models.Frame, grenade_throwers: dict[int, str], previous_frame_graph: nx.Graph | None, map_name: str, map_type: str, dark: bool, show_tiles: bool = True) -> tuple[Figure, Axes, nx.Graph]:
     """
-    Plots a frame and returns the figure and axes. CTs are blue, Ts are orange, and the bomb is an octagon.
+    Plots a frame and returns the figure, axes, and the map graph (containing area controlled information).
+    CTs are blue, Ts are orange, and the bomb is an octagon.
     """
     if show_tiles is True:
         f, a = plot_navigation_mesh(map_name, map_type, dark)
@@ -125,10 +126,12 @@ def plot_frame(frame: models.Frame, grenade_throwers: dict[int, str], map_name: 
     ct_visible_area_ids: set[int] = set()
     t_visible_area_ids: set[int] = set()
 
+    map_graph: nx.Graph = previous_frame_graph or nx.Graph()
+
     team: models.TeamFrameState
     color: str
     visible_area_ids: set[int]
-    for team, color, visible_area_ids in [(frame.ct, "xkcd:azure", ct_visible_area_ids), (frame.t, "xkcd:orange", t_visible_area_ids)]:
+    for team, color in [(frame.ct, "xkcd:azure"), (frame.t, "xkcd:orange")]:
         player_group: list[models.PlayerFrameState] = team.players
         for index, player in enumerate(player_group):
 
@@ -150,9 +153,6 @@ def plot_frame(frame: models.Frame, grenade_throwers: dict[int, str], map_name: 
 
             # Get information about where the player is looking
             trace_results: mathing.VisionTraceResults = mathing.trace_vision(player, frame, map_name)
-            if len(trace_results.end_points) <= 0: 
-                print(trace_results)
-                raise Exception("A vision trace had 0 end points")
             aim_end_point = trace_results.end_points[0]
             visible_area_ids.update(trace_results.visible_area_ids)
 
@@ -184,6 +184,14 @@ def plot_frame(frame: models.Frame, grenade_throwers: dict[int, str], map_name: 
     # t_covered_area_ids: set[int] = t_occupied_area_ids.difference(ct_occupied_area_ids).union(t_visible_area_ids)
     ct_covered_area_ids: set[int] = ct_visible_area_ids
     t_covered_area_ids: set[int] = t_visible_area_ids
+
+    # TODO: Figure out controlled area growth rules.
+    # Idea: maybe if a tile has a neighbor that is a color, and it has no path to the opposite color, make it that color.
+    # Idea: if a tile is viewed by a side, mark it as viewed by that player.
+    #   if that tile is then viewed by a player from the enemy team, mark it as viewed by that player.
+    #   if a player dies, mark every tile that they were viewing as no longer viewed
+    #   
+    # each tile has a "covered_by" attribute, which is a list of players that are viewing it.
 
     # initialize graph with the base positions of each team
     # (where they are standing)
