@@ -6,33 +6,6 @@ import numpy as np
 from dataclasses import dataclass, field
 from awpy.data import NAV_GRAPHS
 
-def get_perpendicular_vector(vector: np.array) -> np.array:
-        """
-        Given a vector, returns a vector perpendicular to it
-        """
-        return np.array([-vector[1], vector[0]])
-
-def get_line_segment_intersection_points(vector_one_endpoints: np.array, vector_two_endpoints: np.array) -> np.array:
-    """
-    Returns the points where two line segments intersect (assumes they are not parallel)
-    Takes the end points of two vectors (they must be the same dimension)
-    Taken from https://stackoverflow.com/a/3252222 - thanks!
-    """
-    if len(vector_one_endpoints) != 2 or len(vector_two_endpoints) != 2:
-        raise ValueError("Must provide exactly 2 endpoints for each vector")
-    if len(vector_one_endpoints[0]) != len(vector_two_endpoints[0]):
-        raise ValueError("Vectors must be of the same dimension")
-    da = np.subtract(vector_one_endpoints[1], vector_one_endpoints[0])
-    db = np.subtract(vector_two_endpoints[1], vector_two_endpoints[0])
-    dp = np.subtract(vector_one_endpoints[0], vector_two_endpoints[0])
-    dap = get_perpendicular_vector(da)
-    denom = np.dot(dap, db)
-    if denom == 0:
-        # raise ValueError("Vectors are parallel")
-        return np.array([])
-    num = np.dot(dap, dp)
-    return (num / denom.astype(float))*db + vector_two_endpoints[0]
-
 @dataclass
 class VisionTraceResults:
     """
@@ -97,52 +70,6 @@ def trace_vision(player: models.PlayerFrameState, frame: models.Frame, map_name:
                 # If we are not in an area then we have gone out of bounds (we probably are in a wall or something so this is our "collision")
                 if nav.point_in_area(map_name, nearest_area_id, next_point) is True:
                     do_end_raycast = False
-                                        # # TODO: Once we enter an area, use the slope of the line we are tracing to skip to the other end of the area.
-                                        # # Skip to the other end of the area
-                                        # # get tile entry point
-                                        # tile = NAV[map_name][nearest_area_id]
-                                        # nw_x: float = tile["northWestX"]
-                                        # se_x: float = tile["southEastX"]
-                                        # nw_y: float = tile["northWestY"]
-                                        # se_y: float = tile["southEastY"]
-                                        # SUPER_LARGE_NUMBER: int = 1000000000
-                                        # x_lengthen_factor: float = np.cos(angle)*SUPER_LARGE_NUMBER
-                                        # y_lengthen_factor: float = np.sin(angle)*SUPER_LARGE_NUMBER
-                                        # lengthened_vision_vector_endpoint: tuple[float, float] = (next_point[0] + x_lengthen_factor, next_point[1] + y_lengthen_factor)
-                                        # vision_vector_endpoints: np.ndarray = np.array([
-                                        #     (next_point[0], next_point[1]), 
-                                        #     (lengthened_vision_vector_endpoint[0], lengthened_vision_vector_endpoint[1])
-                                        # ])
-                                        # tile_perimeter_vector_endpoints: np.ndarray = np.array([
-                                        #     [(nw_x, nw_y), (se_x, nw_y)], # NW to NE (y is constant)
-                                        #     [(nw_x, nw_y), (nw_x, se_y)], # NW to SW (x is constant)
-                                        #     [(nw_x, se_y), (se_x, se_y)], # SW to SE (y is constant)
-                                        #     [(se_x, se_y), (se_x, nw_y)], # SE to NE (x is constant)
-                                        # ])
-                                        # intersection_points = [
-                                        #     get_line_segment_intersection_points(vision_vector_endpoints, perimeter_vector_endpoints) 
-                                        #     for perimeter_vector_endpoints in tile_perimeter_vector_endpoints
-                                        # ]
-                                        # end_of_tile_point: tuple[float, float] = None
-                                        # # Only check points that are on the tile perimeter
-                                        # on_perimeter_points = [
-                                        #     p for p in intersection_points if min(nw_x, se_x) <= p[0] <= max(nw_x, se_x) and min(nw_y, se_y) <= p[1] <= max(nw_y, se_y)
-                                        # ]
-                                        # SUPER_SMALL_NUMBER: int = 0.000001
-                                        # for point in on_perimeter_points:
-                                        #     step_forward_point = (next_point[0] + dx*SUPER_SMALL_NUMBER, next_point[1] + dy*SUPER_SMALL_NUMBER)
-                                        #     current_point = (next_point[0], next_point[1])
-                                        #     distance_from_current = np.sqrt((current_point[0] - point[0])**2 + (current_point[1] - point[1])**2)
-                                        #     distance_from_step_forward = np.sqrt((step_forward_point[0] - point[0])**2 + (step_forward_point[1] - point[1])**2)
-                                        #     if distance_from_step_forward < distance_from_current:
-                                        #         end_of_tile_point = point
-                                        #         break
-                                        # # bug catcher - maybe remove this later
-                                        # if end_of_tile_point is None:
-                                        #     raise Exception("The SUPER_SMALL_NUMBER was not small enough, it seems.")
-                                        # old_point = next_point
-                                        # next_point = (end_of_tile_point[0] + dx*SUPER_SMALL_NUMBER, end_of_tile_point[1] + dy*SUPER_SMALL_NUMBER, player.z)
-                                        # print(f"Skipped from {old_point} to {next_point}")
                     next_point = (player.x + iteration_count*dx, player.y + iteration_count*dy, player.z)
                 else:
                     for area_id in NAV[map_name].keys():

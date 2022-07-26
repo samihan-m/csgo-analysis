@@ -82,7 +82,7 @@ def plot_round(
         shutil.rmtree(f"{image_directory}/")
     os.mkdir(image_directory)
     image_files: list[str] = []
-    frames = round.frames[68:78] # TODO Remove this after done testing
+    frames = round.frames
     grenade_throwers: dict[tuple[float, float, float], str] = {
         (g.grenade_x, g.grenade_y, g.grenade_z): g.thrower_side for g in round.grenades
     }
