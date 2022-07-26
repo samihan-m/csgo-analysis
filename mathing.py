@@ -5,6 +5,8 @@ import models
 import numpy as np
 from dataclasses import dataclass, field
 from awpy.data import NAV_GRAPHS
+import multiprocess as mp
+import os
 
 @dataclass
 class VisionTraceResults:
@@ -13,6 +15,7 @@ class VisionTraceResults:
     The first angle in angled_traced is a straight line forward from where the player is looking.
     (and the first value in end_points is the first wall the player's vision ray encounters.)
     """
+    player_steam_id: int
     angles_traced: list[float] = field(default_factory=list) # In degrees
     end_points: list[tuple[float, float, float]] = field(default_factory=list)
     visible_area_ids: list[int] = field(default_factory=list)
@@ -25,7 +28,7 @@ def trace_vision(player: models.PlayerFrameState, frame: models.Frame, map_name:
     step_size is how far along each line we check to see if the line has collided with something - 
         the more steps, the more accurate the results but the slower the function.
     """
-    trace_results: VisionTraceResults = VisionTraceResults()
+    trace_results: VisionTraceResults = VisionTraceResults(player_steam_id=player.steam_id)
 
     visible_area_ids: set[int] = set()
 
@@ -37,7 +40,7 @@ def trace_vision(player: models.PlayerFrameState, frame: models.Frame, map_name:
     angles_to_trace: list[float] = [player.view_x]
     angles_to_trace.extend([player.view_x + i for i in range(int(-fov/2), int(fov/2 + 1), int(fov/ray_count))])
 
-    trace_results.angles_traced = angles_to_trace
+    # trace_results.angles_traced = angles_to_trace
 
     angles_to_trace = np.deg2rad(angles_to_trace)
 
@@ -55,7 +58,11 @@ def trace_vision(player: models.PlayerFrameState, frame: models.Frame, map_name:
 
         return False
 
-    for angle in angles_to_trace:
+    def trace_angle(angle: float) -> tuple[float, set[int], tuple[float, float, float]]:
+        """
+        Traces an angle and returns a list of every area id hit until it encountered something obstructing vision
+        """
+        area_ids: set[int] = set()
         dx: float = np.cos(angle)*step_size
         dy: float = np.sin(angle)*step_size
         next_point: tuple[float, float, float] = (player.x, player.y, player.z)
@@ -72,9 +79,31 @@ def trace_vision(player: models.PlayerFrameState, frame: models.Frame, map_name:
                 ):
                     do_end_raycast = False
                     next_point = (player.x + iteration_count*dx, player.y + iteration_count*dy, player.z)
-                    visible_area_ids.add(area_id)
+                    area_ids.add(area_id)
 
-        trace_results.end_points.append(next_point)
+        return (angle, area_ids, next_point)
+        
+    visible_area_ids: set[int] = set()
+
+    # with mp.Pool() as pool:
+    #     traces: list[tuple[float, set[int], tuple[float, float, float]]] = pool.map(trace_angle, angles_to_trace)
+    #     for angle, area_ids, next_point in traces:
+    #         visible_area_ids.update(area_ids)
+    #         if angle == player.view_x:
+    #             trace_results.angles_traced = [np.rad2deg(angle)].extend(trace_results.angles_traced)
+    #             trace_results.end_points = [next_point].extend(trace_results.end_points)
+    #         else:
+    #             trace_results.angles_traced.append(angle)
+    #             trace_results.end_points.append(next_point)
+    traces: list[tuple[float, set[int], tuple[float, float, float]]] = [trace_angle(angle) for angle in angles_to_trace]
+    for angle, area_ids, next_point in traces:
+            visible_area_ids.update(area_ids)
+            if angle == player.view_x:
+                trace_results.angles_traced = [np.rad2deg(angle)].extend(trace_results.angles_traced)
+                trace_results.end_points = [next_point].extend(trace_results.end_points)
+            else:
+                trace_results.angles_traced.append(angle)
+                trace_results.end_points.append(next_point)
     
     trace_results.visible_area_ids = list(visible_area_ids)
 
