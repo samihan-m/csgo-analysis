@@ -61,18 +61,23 @@ def trace_vision(player: models.PlayerFrameState, frame: models.Frame, map_name:
         next_point: tuple[float, float, float] = (player.x, player.y, player.z)
         do_end_raycast: bool = False
         iteration_count: int = 0
+        nearest_area_id: int = player_area_id
         while do_end_raycast is False:
             iteration_count += 1
             do_end_raycast = True
-            for area_id in NAV[map_name].keys():
+            if is_point_in_smoke(next_point[0], next_point[1], next_point[2]) is False:
+                # TODO: If we can find a way to intelligently decrease the amount of area_ids we test, this will be faster.
                 # If we are not in an area then we have gone out of bounds (we probably are in a wall or something so this is our "collision")
-                if (
-                    nav.point_in_area(map_name, area_id, next_point) is True and
-                    is_point_in_smoke(next_point[0], next_point[1], next_point[2]) is False
-                ):
+                if nav.point_in_area(map_name, nearest_area_id, next_point) is True:
                     do_end_raycast = False
                     next_point = (player.x + iteration_count*dx, player.y + iteration_count*dy, player.z)
-                    visible_area_ids.add(area_id)
+                else:
+                    for area_id in NAV[map_name].keys():
+                        if nav.point_in_area(map_name, area_id, next_point) is True:
+                            nearest_area_id = area_id
+                            do_end_raycast = False
+                            next_point = (player.x + iteration_count*dx, player.y + iteration_count*dy, player.z)
+                            visible_area_ids.add(area_id)
 
         trace_results.end_points.append(next_point)
     
