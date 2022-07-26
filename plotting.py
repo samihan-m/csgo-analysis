@@ -7,13 +7,9 @@ from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 from awpy.visualization import plot
 from awpy.data import NAV
-from awpy.analytics import nav
 import networkx as nx
-import scipy.spatial
 from tqdm import tqdm
 import models
-import numpy as np
-from awpy.data import NAV_GRAPHS
 import mathing
 
 def plot_navigation_mesh(map_name: str, map_type: str, dark: bool) -> tuple[Figure, Axes]:
