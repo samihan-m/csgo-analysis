@@ -92,20 +92,46 @@ def plot_round(
         (g.grenade_x, g.grenade_y, g.grenade_z): g.thrower_side for g in round.grenades
     }
     with tqdm(total=len(frames), desc = "Drawing frames: ") as progress_bar:
+        previous_frame_graph: nx.Graph | None = None
         for i, frame in enumerate(frames):
-            f, a = plot_frame(frame, grenade_throwers, map_name, map_type, dark, show_tiles)
+            map_graph: nx.Graph
+            trace_results: dict[int, mathing.VisionTraceResults]
+            map_graph, trace_results = mathing.calculate_vision_graph(frame=frame, previous_frame_graph=previous_frame_graph, map_name=map_name)
+            map_graph = mathing.grow_controlled_areas(frame=frame, map_graph=map_graph)
+            f, a = plot_frame(
+                frame=frame, 
+                grenade_throwers=grenade_throwers, 
+                map_graph=map_graph,
+                vision_trace_results=trace_results,
+                map_name=map_name, 
+                map_type=map_type, 
+                dark=dark, 
+                show_tiles=show_tiles
+            )
+            # Commenting this out to disable vision persisting across frames
+            # previous_frame_graph = map_graph
             image_files.append("csgo_tmp/{}.png".format(i))
-            f.savefig(image_files[-1], dpi=300, bbox_inches="tight")
+            # f.savefig(image_files[-1], dpi=300, bbox_inches="tight")
+            f.savefig(image_files[-1], dpi=300)
             plt.close()
             progress_bar.update()
     images = []
     for file in image_files:
         images.append(imageio.imread(file))
-    imageio.mimsave(filename, images, fps=1)
+    imageio.mimsave(filename, images, fps=2)
     shutil.rmtree("csgo_tmp/")
     return True
 
-def plot_frame(frame: models.Frame, grenade_throwers: dict[int, str], previous_frame_graph: nx.Graph | None, map_name: str, map_type: str, dark: bool, show_tiles: bool = True) -> tuple[Figure, Axes, nx.Graph]:
+def plot_frame(
+    frame: models.Frame, 
+    grenade_throwers: dict[int, str], 
+    map_graph: nx.Graph, 
+    vision_trace_results: dict[int, mathing.VisionTraceResults],
+    map_name: str, 
+    map_type: str, 
+    dark: bool, 
+    show_tiles: bool = True
+    ) -> tuple[Figure, Axes]:
     """
     Plots a frame and returns the figure, axes, and the map graph (containing area controlled information).
     CTs are blue, Ts are orange, and the bomb is an octagon.
@@ -123,14 +149,8 @@ def plot_frame(frame: models.Frame, grenade_throwers: dict[int, str], previous_f
         bomb_y = y_transform(frame.bomb.y)
         a.scatter(x=bomb_x, y=bomb_y, c="yellow", marker="8")
 
-    ct_visible_area_ids: set[int] = set()
-    t_visible_area_ids: set[int] = set()
-
-    map_graph: nx.Graph = previous_frame_graph or nx.Graph()
-
     team: models.TeamFrameState
     color: str
-    visible_area_ids: set[int]
     for team, color in [(frame.ct, "xkcd:azure"), (frame.t, "xkcd:orange")]:
         player_group: list[models.PlayerFrameState] = team.players
         for index, player in enumerate(player_group):
@@ -143,110 +163,28 @@ def plot_frame(frame: models.Frame, grenade_throwers: dict[int, str], previous_f
                 continue
 
             a.scatter(x=player_x, y=player_y, c=color, marker=".")
+
             # Draw lines between this player and other alive players
             for player2 in [p for p in player_group[index:] if p.hp > 0]:
                 player2_x = x_transform(player2.x)
                 player2_y = y_transform(player2.y)
                 x_values = [player_x, player2_x]
                 y_values = [player_y, player2_y]
-                a.plot(x_values, y_values, c=color, linestyle="dotted", linewidth="0.4")
+                a.plot(x_values, y_values, c=color, linestyle="dotted", linewidth="0.7")
 
-            # Get information about where the player is looking
-            trace_results: mathing.VisionTraceResults = mathing.trace_vision(player, frame, map_name)
-            aim_end_point = trace_results.end_points[0]
-            visible_area_ids.update(trace_results.visible_area_ids)
-
+            aim_end_point = vision_trace_results[player.steam_id].end_points[0]
             # Draw a line to where the player is aiming
             a.scatter(x=x_transform(aim_end_point[0]), y=y_transform(aim_end_point[1]), c=color, marker="2")
             a.plot([player_x, x_transform(aim_end_point[0])], [player_y, y_transform(aim_end_point[1])], c=color, linestyle="--", linewidth=0.5)
 
             # Draw lines for every view vector cast
-            for end_point in trace_results.end_points[1:]:
+            for end_point in vision_trace_results[player.steam_id].end_points[1:]:
                 view_vector_end_point_x = x_transform(end_point[0])
                 view_vector_end_point_y = y_transform(end_point[1])
                 x_values = [player_x, view_vector_end_point_x]
                 y_values = [player_y, view_vector_end_point_y]
                 # a.scatter(x=end_point[0], y=end_point[1], c=color, marker="2")
                 a.plot(x_values, y_values, c=color, linestyle="dotted", linewidth="0.4", alpha=0.2)
-
-    # Graph time. TODO: Iteratively grow zones of control for each team 
-    # (after setting each player's current position as in their control (if there are no enemies in the tile))
-
-    map_graph: nx.Graph = NAV_GRAPHS[map_name]
-
-    # ct_occupied_area_ids: set[int] = {
-    #     nav.find_closest_area(map_name, (player.x, player.y, player.z)).get("areaId", None) for player in frame.ct.players if player.hp > 0
-    # }
-    # t_occupied_area_ids: set[int] = {
-    #     nav.find_closest_area(map_name, (player.x, player.y, player.z)).get("areaId", None) for player in frame.t.players if player.hp > 0
-    # }
-    # ct_covered_area_ids: set[int] = ct_occupied_area_ids.difference(t_occupied_area_ids).union(ct_visible_area_ids)
-    # t_covered_area_ids: set[int] = t_occupied_area_ids.difference(ct_occupied_area_ids).union(t_visible_area_ids)
-    ct_covered_area_ids: set[int] = ct_visible_area_ids
-    t_covered_area_ids: set[int] = t_visible_area_ids
-
-    # TODO: Figure out controlled area growth rules.
-    # Idea: maybe if a tile has a neighbor that is a color, and it has no path to the opposite color, make it that color.
-    # Idea: if a tile is viewed by a side, mark it as viewed by that player.
-    #   if that tile is then viewed by a player from the enemy team, mark it as viewed by that player.
-    #   if a player dies, mark every tile that they were viewing as no longer viewed
-    #   
-    # each tile has a "covered_by" attribute, which is a list of players that are viewing it.
-
-    # initialize graph with the base positions of each team
-    # (where they are standing)
-    for node in map_graph.nodes(data=True):
-        node_data: dict = node[1]
-        node_data["controlling_side"] = None
-    for node in map_graph.nodes(data=True):
-        area_id: int = node[0]
-        node_data: dict = node[1]
-        if node_data["areaID"] in ct_covered_area_ids:
-            node_data["controlling_side"] = "CT"
-            # Note: to add all immediate neighbors, uncomment this: 
-            # for neighbor in map_graph.neighbors(area_id):
-            #     neighbor_data: dict = map_graph.nodes[neighbor]
-            #     if neighbor_data["controlling_side"] is None:
-            #         neighbor_data["controlling_side"] = "CT"
-        elif node_data["areaID"] in t_covered_area_ids:
-            node_data["controlling_side"] = "T"
-            # Note: to add all immediate neighbors, uncomment this: 
-            # for neighbor in map_graph.neighbors(area_id):
-            #     neighbor_data: dict = map_graph.nodes[neighbor]
-            #     if neighbor_data["controlling_side"] is None:
-            #         neighbor_data["controlling_side"] = "T"
-        else:
-            node_data["controlling_side"] = None
-    
-    # Spread the zones of control as far as they should
-    # TODO: This is not super great (it's wrong a lot)
-    graph_did_change: bool = True
-    graph_did_change = False # TODO: Re-enable this
-    while graph_did_change:
-        graph_did_change = False
-        for node in map_graph.nodes(data=True):
-            area_id: int = node[0]
-            node_data: dict = node[1]
-            ct_zone_neighbor_count: int = 0
-            t_zone_neighbor_count: int = 0
-            if node_data["controlling_side"] is not None:
-                continue
-            for neighbor in map_graph.neighbors(area_id):
-                neighbor_data: dict = map_graph.nodes[neighbor]
-                if neighbor_data["controlling_side"] == "CT":
-                    ct_zone_neighbor_count += 1
-                elif neighbor_data["controlling_side"] == "T":
-                    t_zone_neighbor_count += 1
-            if ct_zone_neighbor_count >= 2 and t_zone_neighbor_count == 0:
-                node_data["controlling_side"] = "CT"
-                ct_covered_area_ids.add(node_data["areaID"])
-                # print(f"Zone {node_data['areaID']} is neighbored by 2+ CT zones (formerly controlled by {node_data.get('controlling_side', None)})")
-                graph_did_change = True
-            elif t_zone_neighbor_count >= 2 and ct_zone_neighbor_count == 0:
-                node_data["controlling_side"] = "T"
-                t_covered_area_ids.add(node_data["areaID"])
-                # print(f"Zone {node_data['areaID']} is neighbored by 2+ T zones (formerly controlled by {node_data.get('controlling_side', None)})")
-                graph_did_change = True
 
     # Color tiles!
     for node in map_graph.nodes(data=True):
@@ -276,6 +214,8 @@ def plot_frame(frame: models.Frame, grenade_throwers: dict[int, str], previous_f
 
     # TODO: Resize markers to match how big they are in game if necessary
 
+    marker_size: int = 400
+
     def get_thrower_of_closest_grenade(x: float, y: float, z: float) -> str:
         """
         Given a grenade's x, y, z coordinates, find the thrower of the closest grenade
@@ -288,13 +228,13 @@ def plot_frame(frame: models.Frame, grenade_throwers: dict[int, str], previous_f
         smoke_y: float = plot.position_transform(map_name, smoke.y, "y")
         owner = get_thrower_of_closest_grenade(smoke.x, smoke.y, smoke.z)
         outline_color = "xkcd:azure" if owner == "CT" else "xkcd:orange" if owner == "T" else "black"
-        a.scatter(x=smoke_x, y=smoke_y, c="grey", marker=".", edgecolors=outline_color, s=400,)
+        a.scatter(x=smoke_x, y=smoke_y, c="grey", marker=".", edgecolors=outline_color, s=marker_size,)
 
     for fire in frame.fires:
         fire_x: float = plot.position_transform(map_name, fire.x, "x")
         fire_y: float = plot.position_transform(map_name, fire.y, "y")
         owner = get_thrower_of_closest_grenade(fire.x, fire.y, fire.z)
         outline_color = "xkcd:azure" if owner == "CT" else "xkcd:orange" if owner == "T" else "black"
-        a.scatter(x=fire_x, y=fire_y, c="red", marker=".", edgecolors=outline_color, s=400)
+        a.scatter(x=fire_x, y=fire_y, c="red", marker=".", edgecolors=outline_color, s=marker_size,)
 
     return f, a
