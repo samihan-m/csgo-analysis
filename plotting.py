@@ -55,48 +55,46 @@ def plot_rounds(demo_file_data, output_file_directory: str) -> None:
         print(f"Creating .gif for round {index}/{total_rounds}:")
         plot_round(f"{output_file_directory}/round{index}.gif", round["frames"], map_name=demo_file_data["mapName"])
 
-def plot_first_round(demo_file_data, output_file_name: str) -> None:
-    """
-    Given a parsed demo file, plot the first round of the demo and save it to a file
-    """
-    first_round_data = demo_file_data["gameRounds"][0]["frames"]
-    plot_round(f"{output_file_name}.gif", first_round_data, map_name=demo_file_data["mapName"])
-
 def plot_round(
-    filename: str, 
+    folder_name: str, 
     round: models.Round, 
     map_name: str, 
-    map_type: str, 
+    map_type: str = "simpleradar", 
     dark: bool = False, 
-    show_tiles: bool = False
+    show_tiles: bool = True,
+    gif_frame_rate: int = 2
     ) -> tuple[Figure, Axes]:
     """Plots a round and saves as a .gif. CTs are blue, Ts are orange, and the bomb is an octagon. Only use untransformed coordinates.
 
     Args:
-        filename (string): Filename to save the gif
-        frames (list): List of frames from a parsed demo
-        markers (list): List of marker types for each player
+        folder_name (string): folder name to save the frame images and the round gif
+        round (list): the round to plot
         map_name (string): Map to search
         map_type (string): "original" or "simpleradar"
         dark (boolean): Only for use with map_type="simpleradar". Indicates if you want to use the SimpleRadar dark map type
+        show_tiles: (boolean): The round images will have the outlines of each map tile displayed
+        gif_frame_rate (int): The frames per second at which the GIF will play
 
     Returns:
         matplotlib fig and ax, saves .gif
     """
-    if os.path.isdir("csgo_tmp"):
-        shutil.rmtree("csgo_tmp/")
-    os.mkdir("csgo_tmp")
-    image_files = []
+    parent_directory = "visualizations"
+    if os.path.isdir(parent_directory) is False:
+        os.mkdir(parent_directory)
+    image_directory: str = f"{parent_directory}/{folder_name}"
+    if os.path.isdir(image_directory):
+        shutil.rmtree(f"{image_directory}/")
+    os.mkdir(image_directory)
+    image_files: list[str] = []
     frames = round.frames
     grenade_throwers: dict[tuple[float, float, float], str] = {
         (g.grenade_x, g.grenade_y, g.grenade_z): g.thrower_side for g in round.grenades
     }
     with tqdm(total=len(frames), desc = "Drawing frames: ") as progress_bar:
-        previous_frame_graph: nx.Graph | None = None
         for i, frame in enumerate(frames):
             map_graph: nx.Graph
             trace_results: dict[int, mathing.VisionTraceResults]
-            map_graph, trace_results = mathing.calculate_vision_graph(frame=frame, previous_frame_graph=previous_frame_graph, map_name=map_name)
+            map_graph, trace_results = mathing.calculate_vision_graph(frame=frame, map_name=map_name)
             map_graph = mathing.grow_controlled_areas(frame=frame, map_graph=map_graph)
             f, a = plot_frame(
                 frame=frame, 
@@ -108,18 +106,16 @@ def plot_round(
                 dark=dark, 
                 show_tiles=show_tiles
             )
-            # Commenting this out to disable vision persisting across frames
-            # previous_frame_graph = map_graph
-            image_files.append("csgo_tmp/{}.png".format(i))
-            # f.savefig(image_files[-1], dpi=300, bbox_inches="tight")
-            f.savefig(image_files[-1], dpi=300)
+            image_files.append(f"{image_directory}/frame_{i}.png")
+            f.tight_layout(pad=0)
+            f.savefig(image_files[-1], dpi=300, bbox_inches="tight", pad_inches=0)
             plt.close()
             progress_bar.update()
     images = []
     for file in image_files:
         images.append(imageio.imread(file))
-    imageio.mimsave(filename, images, fps=2)
-    shutil.rmtree("csgo_tmp/")
+    gif_file_name: str = f"{folder_name}.gif"
+    imageio.mimsave(f"{image_directory}/{gif_file_name}", images, fps=gif_frame_rate)
     return True
 
 def plot_frame(

@@ -84,12 +84,12 @@ def trace_vision(player: models.PlayerFrameState, frame: models.Frame, map_name:
 
     return trace_results
 
-def calculate_vision_graph(frame: models.Frame, previous_frame_graph: nx.Graph | None, map_name: str) -> tuple[nx.Graph, dict]:
+def calculate_vision_graph(frame: models.Frame, map_name: str) -> tuple[nx.Graph, dict]:
     """
     Returns a map graph with each node containing information about who is viewing it
     Also returns a map of player steam_id to their entire VisionTraceResults object
     """
-    map_graph: nx.Graph = previous_frame_graph or NAV_GRAPHS[map_name]
+    map_graph: nx.Graph = NAV_GRAPHS[map_name]
     vision_trace_results: dict[int, VisionTraceResults] = {}
 
     for node in map_graph.nodes(data=True):
@@ -98,7 +98,7 @@ def calculate_vision_graph(frame: models.Frame, previous_frame_graph: nx.Graph |
         node_data["covered_by"] = set()
         node_data["previously_covered_by"] = previous_covered_by_set
 
-    for player in frame.ct.players + frame.t.players:
+    for player in [p for p in frame.ct.players + frame.t.players if p.hp > 0]:
         trace_results: VisionTraceResults = trace_vision(player=player, frame=frame, map_name=map_name)
         vision_trace_results[player.steam_id] = trace_results
 

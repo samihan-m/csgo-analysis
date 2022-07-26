@@ -158,3 +158,5 @@ demos/
 *.csv
 *.gif
 csgo_tmp/
+visualizations/
+*.prof
