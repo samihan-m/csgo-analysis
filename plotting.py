@@ -53,7 +53,9 @@ def plot_rounds(demo_file_data, output_file_directory: str) -> None:
 
 def plot_round(
     folder_name: str, 
-    round: models.Round, 
+    round: models.Round,
+    vision_graphs: list[nx.Graph],
+    vision_traces: list[dict[int, mathing.VisionTraceResults]],
     map_name: str, 
     map_type: str = "simpleradar", 
     dark: bool = False, 
@@ -88,16 +90,13 @@ def plot_round(
     }
     with tqdm(total=len(frames), desc = "Drawing frames: ") as progress_bar:
         for i, frame in enumerate(frames):
-            map_graph: nx.Graph
-            trace_results: dict[int, mathing.VisionTraceResults]
-            map_graph, trace_results = mathing.calculate_vision_graph(frame=frame, map_name=map_name)
-            map_graph = mathing.grow_controlled_areas(frame=frame, map_graph=map_graph)
-            controlled_area_sizes = mathing.calculate_controlled_area_sizes(map_graph=map_graph, map_name=map_name)
+            vision_graph = vision_graphs[i]
+            vision_trace_results = vision_traces[i]
             f, a = plot_frame(
                 frame=frame, 
                 grenade_throwers=grenade_throwers, 
-                map_graph=map_graph,
-                vision_trace_results=trace_results,
+                map_graph=vision_graph,
+                vision_trace_results=vision_trace_results,
                 map_name=map_name, 
                 map_type=map_type, 
                 dark=dark, 
@@ -168,7 +167,7 @@ def plot_frame(
             aim_end_point = vision_trace_results[player.steam_id].end_points[0]
             # Draw a line to where the player is aiming
             a.scatter(x=x_transform(aim_end_point[0]), y=y_transform(aim_end_point[1]), c=color, marker="2")
-            a.plot([player_x, x_transform(aim_end_point[0])], [player_y, y_transform(aim_end_point[1])], c=color, linestyle="--", linewidth=0.5)
+            a.plot([player_x, x_transform(aim_end_point[0])], [player_y, y_transform(aim_end_point[1])], c=color, linestyle="solid", linewidth=0.85)
 
             # Draw lines for every view vector cast
             for end_point in vision_trace_results[player.steam_id].end_points[1:]:

@@ -90,7 +90,7 @@ def calculate_vision_graph(frame: models.Frame, map_name: str) -> tuple[nx.Graph
     Returns a map graph with each node containing information about who is viewing it
     Also returns a map of player steam_id to their entire VisionTraceResults object
     """
-    map_graph: nx.Graph = NAV_GRAPHS[map_name]
+    map_graph: nx.Graph = nx.Graph(NAV_GRAPHS[map_name])
     vision_trace_results: dict[int, VisionTraceResults] = {}
 
     for node in map_graph.nodes(data=True):
@@ -200,7 +200,7 @@ def get_tile_area(area_id: int, map_name: str) -> float:
     return np.prod(dimensions)
 
 
-def calculate_controlled_area_sizes(map_graph: nx.Graph, map_name: str) -> dict[str, int]:
+def calculate_controlled_area_sizes(map_graph: nx.Graph, map_name: str) -> dict[str, float]:
     """
     Returns a map of area_id to the number of players that are in that area
     """
