@@ -185,3 +185,35 @@ def grow_controlled_areas(frame: models.Frame, map_graph: nx.Graph) -> nx.Graph:
     #             graph_did_change = True
 
     return map_graph
+
+def get_tile_area(area_id: int, map_name: str) -> float:
+    """
+    Returns the size of the area with the given ID
+    """
+    tile: dict = NAV[map_name][area_id]
+    # Not using volume - using area because it's the GIF is more representative of area than volume
+    # nw_corner: np.ndarray = np.array(tile["northWestX"], tile["northWestY"], tile["northWestZ"])
+    # se_corner: np.ndarray = np.array(tile["southEastX"], tile["southEastY"], tile["southEastZ"])
+    nw_corner: np.ndarray = np.array((tile["northWestX"], tile["northWestY"]))
+    se_corner: np.ndarray = np.array((tile["southEastX"], tile["southEastY"]))
+    dimensions: np.ndarray = np.absolute(np.subtract(nw_corner, se_corner))
+    return np.prod(dimensions)
+
+
+def calculate_controlled_area_sizes(map_graph: nx.Graph, map_name: str) -> dict[str, int]:
+    """
+    Returns a map of area_id to the number of players that are in that area
+    """
+    area_controlled_sizes: dict = {
+        "CT": 0,
+        "T": 0,
+    }
+    for node in map_graph.nodes(data=True):
+        area_id: int = node[0]
+        node_data: dict = node[1]
+        if node_data["controlling_side"] == "CT":
+            area_controlled_sizes["CT"] += get_tile_area(area_id, map_name)
+        elif node_data["controlling_side"] == "T":
+            area_controlled_sizes["T"] += get_tile_area(area_id, map_name)
+
+    return area_controlled_sizes

@@ -92,6 +92,7 @@ def plot_round(
             trace_results: dict[int, mathing.VisionTraceResults]
             map_graph, trace_results = mathing.calculate_vision_graph(frame=frame, map_name=map_name)
             map_graph = mathing.grow_controlled_areas(frame=frame, map_graph=map_graph)
+            controlled_area_sizes = mathing.calculate_controlled_area_sizes(map_graph=map_graph, map_name=map_name)
             f, a = plot_frame(
                 frame=frame, 
                 grenade_throwers=grenade_throwers, 
