@@ -12,6 +12,15 @@ from tqdm import tqdm
 import models
 import mathing
 
+CT_COLOR: str = "xkcd:azure"
+T_COLOR: str = "xkcd:orange"
+BOMB_COLOR: str = "yellow"
+CT_TILE_COLOR: str = "xkcd:lightblue"
+T_TILE_COLOR: str = "darkorange"
+SMOKE_COLOR: str = "grey"
+FIRE_COLOR: str = "red"
+DEFAULT_COLOR: str = "black"
+
 def plot_navigation_mesh(map_name: str, map_type: str, dark: bool) -> tuple[Figure, Axes]:
     """
     Plots the map's navigation mesh
@@ -139,11 +148,11 @@ def plot_frame(
     if frame.bomb is not None:
         bomb_x = x_transform(frame.bomb.x)
         bomb_y = y_transform(frame.bomb.y)
-        a.scatter(x=bomb_x, y=bomb_y, c="yellow", marker="8")
+        a.scatter(x=bomb_x, y=bomb_y, c=BOMB_COLOR, marker="8")
 
     team: models.TeamFrameState
     color: str
-    for team, color in [(frame.ct, "xkcd:azure"), (frame.t, "xkcd:orange")]:
+    for team, color in [(frame.ct, CT_COLOR), (frame.t, T_COLOR)]:
         player_group: list[models.PlayerFrameState] = team.players
         for index, player in enumerate(player_group):
 
@@ -185,9 +194,9 @@ def plot_frame(
         if controlling_side is None:
             continue
         elif controlling_side == "CT":
-            color = "cyan"
+            color = CT_TILE_COLOR
         elif controlling_side == "T":
-            color = "orange"
+            color = T_TILE_COLOR
 
         area_id: int = node_data["areaID"]
         tile = NAV[map_name][area_id]
@@ -201,7 +210,7 @@ def plot_frame(
         southwest_x = x_nw
         southwest_y = y_se   
 
-        rect = matplotlib.patches.Rectangle((southwest_x,southwest_y), width, height, linewidth=0.4, edgecolor=color, facecolor=color, alpha=0.3)
+        rect = matplotlib.patches.Rectangle((southwest_x,southwest_y), width, height, linewidth=0.4, edgecolor=color, facecolor=color, alpha=0.2)
         a.add_patch(rect)
 
     # TODO: Resize markers to match how big they are in game if necessary
@@ -219,14 +228,14 @@ def plot_frame(
         smoke_x: float = plot.position_transform(map_name, smoke.x, "x")
         smoke_y: float = plot.position_transform(map_name, smoke.y, "y")
         owner = get_thrower_of_closest_grenade(smoke.x, smoke.y, smoke.z)
-        outline_color = "xkcd:azure" if owner == "CT" else "xkcd:orange" if owner == "T" else "black"
-        a.scatter(x=smoke_x, y=smoke_y, c="grey", marker=".", edgecolors=outline_color, s=marker_size,)
+        outline_color = CT_COLOR if owner == "CT" else T_COLOR if owner == "T" else SMOKE_COLOR
+        a.scatter(x=smoke_x, y=smoke_y, c=SMOKE_COLOR, marker=".", edgecolors=outline_color, s=marker_size,)
 
     for fire in frame.fires:
         fire_x: float = plot.position_transform(map_name, fire.x, "x")
         fire_y: float = plot.position_transform(map_name, fire.y, "y")
         owner = get_thrower_of_closest_grenade(fire.x, fire.y, fire.z)
-        outline_color = "xkcd:azure" if owner == "CT" else "xkcd:orange" if owner == "T" else "black"
-        a.scatter(x=fire_x, y=fire_y, c="red", marker=".", edgecolors=outline_color, s=marker_size,)
+        outline_color = CT_COLOR if owner == "CT" else T_COLOR if owner == "T" else FIRE_COLOR
+        a.scatter(x=fire_x, y=fire_y, c=FIRE_COLOR, marker=".", edgecolors=outline_color, s=marker_size,)
 
     return f, a
