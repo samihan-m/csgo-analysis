@@ -61,7 +61,8 @@ def plot_rounds(demo_file_data, output_file_directory: str) -> None:
         plot_round(f"{output_file_directory}/round{index}.gif", round["frames"], map_name=demo_file_data["mapName"])
 
 def plot_round(
-    folder_name: str, 
+    image_directory: str, 
+    round_number: int,
     round: models.Round,
     vision_graphs: list[nx.Graph],
     vision_traces: list[dict[int, mathing.VisionTraceResults]],
@@ -70,7 +71,7 @@ def plot_round(
     dark: bool = False, 
     show_tiles: bool = True,
     gif_frame_rate: int = 2
-    ) -> tuple[Figure, Axes]:
+    ) -> bool:
     """Plots a round and saves as a .gif. CTs are blue, Ts are orange, and the bomb is an octagon. Only use untransformed coordinates.
 
     Args:
@@ -82,25 +83,16 @@ def plot_round(
         show_tiles: (boolean): The round images will have the outlines of each map tile displayed
         gif_frame_rate (int): The frames per second at which the GIF will play
 
-    Returns:
-        matplotlib fig and ax, saves .gif
     """
-    parent_directory = "visualizations"
-    if os.path.isdir(parent_directory) is False:
-        os.mkdir(parent_directory)
-    image_directory: str = f"{parent_directory}/{folder_name}"
-    if os.path.isdir(image_directory):
-        shutil.rmtree(f"{image_directory}/")
-    os.mkdir(image_directory)
     image_files: list[str] = []
     frames = round.frames
     grenade_throwers: dict[tuple[float, float, float], str] = {
         (g.grenade_x, g.grenade_y, g.grenade_z): g.thrower_side for g in round.grenades
     }
     with tqdm(total=len(frames), desc = "Drawing frames: ") as progress_bar:
-        for i, frame in enumerate(frames):
-            vision_graph = vision_graphs[i]
-            vision_trace_results = vision_traces[i]
+        for index, frame in enumerate(frames):
+            vision_graph = vision_graphs[index]
+            vision_trace_results = vision_traces[index]
             f, a = plot_frame(
                 frame=frame, 
                 grenade_throwers=grenade_throwers, 
@@ -111,7 +103,7 @@ def plot_round(
                 dark=dark, 
                 show_tiles=show_tiles
             )
-            image_files.append(f"{image_directory}/frame_{i}.png")
+            image_files.append(f"{image_directory}/frame_{index+1}.png")
             f.tight_layout(pad=0)
             f.savefig(image_files[-1], dpi=300, bbox_inches="tight", pad_inches=0)
             plt.close()
@@ -119,8 +111,7 @@ def plot_round(
     images = []
     for file in image_files:
         images.append(imageio.imread(file))
-    gif_file_name: str = f"{folder_name}.gif"
-    imageio.mimsave(f"{image_directory}/{gif_file_name}", images, fps=gif_frame_rate)
+    imageio.mimsave(f"{image_directory}/round_{round_number}.gif", images, fps=gif_frame_rate)
     return True
 
 def plot_frame(

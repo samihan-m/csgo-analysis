@@ -76,83 +76,6 @@ def run() -> None:
     except Exception as error:
         logging.error(f"ERROR: {str(error)}\n")
 
-def extract_data_console_version() -> None:
-    """
-    Run the main 'extract data' routine in console mode
-    """
-
-    root = tk.Tk()
-    # To open file dialog in a new window on top of everything else instead of behind everything else
-    root.wm_attributes('-topmost', 1)
-    root.withdraw()
-
-    print("Select the .dem file from which you would like to extract the data (see new window):")
-    input_file_path = get_demo_file_name()
-    if input_file_path == "":
-        print("No file selected, exiting.")
-        return
-    print(f"Loading demo file at {input_file_path}, please wait...")
-    parsed_demo_data = parsing.parse_demo_file(input_file_path)
-    print("Loaded demo file.")
-    print("Extracting player location information, please wait...")
-    player_information = parsing.extract_player_information(parsed_demo_data)
-    print("Extracted player location information.")
-    print("Select to where you would like the output .csv file to save (see new window):")
-    output_file_path = get_csv_output_file_name()
-    print(f"Saving to {output_file_path}")
-    parsing.write_player_information_to_csv(player_information, output_file_path)
-    print("Wrote player location information to output file.")
-
-    print("Extracting team area controlled information, please wait...")
-    area_data = mathing.get_area_controlled_information_for_game(parsed_demo_data)
-    print("Extracted team area controlled information.")
-    print("Select to where you would like the output .csv file to save (see new window):")
-    output_file_path = get_csv_output_file_name()
-    print(f"Saving to {output_file_path}")
-    parsing.write_area_controlled_information_to_csv(area_data, output_file_path)
-    print("Wrote team area controlled information to output file.")
-
-    do_save_gifs: bool = None
-    while do_save_gifs is None:
-        print("Would you like to save .gifs of each round visualizing player locations? (This will take some time.) (Y/N)")
-        user_input = input("Enter your choice: ").upper()
-        if user_input not in ["Y", "N"]:
-            print("Invalid input. Please try again.")
-            continue
-        if user_input == "Y":
-            do_save_gifs = True
-        if user_input == "N":
-            do_save_gifs = False
-    if do_save_gifs is True:
-        print("Select the directory where you would like the .gif files to be saved (see new window):")
-        gif_output_directory = get_gif_output_directory()
-        print(f"Saving .gifs to {gif_output_directory}")
-        plotting.plot_rounds(parsed_demo_data, gif_output_directory)
-        print("Saved .gifs.")
-    print("Done!")
-    
-def console_main() -> None:
-    """
-    Launch CLI version of the program
-    """
-    print("Welcome to the CS:GO Demo File Player Data Extractor!")
-    do_quit: bool = False
-    while do_quit is False:
-        print("Select an option:")
-        print("""1. Extract data from a .dem file, creating a .csv file for player positions, area controlled,
-        and .gifs for visualizing the area controlled by each team.""")
-        print("Q. Quit")
-        user_input = input("Enter your choice: ").upper()
-        if user_input not in ["1", "Q"]:
-            print("Invalid input. Please try again.")
-            continue
-        if user_input == "1":
-            extract_data_console_version()
-        if user_input == "Q":
-            do_quit = True
-            input("Closing. Press ENTER to continue.")
-            return
-
 def main():
     """
     """
@@ -181,5 +104,5 @@ def main():
     window.mainloop()
 
 if __name__ == "__main__":
-    # main()
-    console_main()
+    main()
+    
