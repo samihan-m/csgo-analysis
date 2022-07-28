@@ -1,10 +1,9 @@
 from awpy.analytics import nav
-from awpy.data import NAV
+from awpy.data import NAV, NAV_GRAPHS
 import networkx as nx
 import models
 import numpy as np
 from dataclasses import dataclass, field
-from awpy.data import NAV_GRAPHS
 
 @dataclass
 class VisionTraceResults:
