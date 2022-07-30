@@ -1,5 +1,3 @@
-import os
-import shutil
 import imageio
 import matplotlib
 from matplotlib.figure import Figure
@@ -21,7 +19,7 @@ SMOKE_COLOR: str = "grey"
 FIRE_COLOR: str = "red"
 DEFAULT_COLOR: str = "black"
 
-def plot_navigation_mesh(map_name: str, map_type: str, dark: bool) -> tuple[Figure, Axes]:
+def plot_navigation_mesh(map_name: str, map_type: str, dark: bool) -> "tuple[Figure, Axes]":
     """
     Plots the map's navigation mesh
     """
@@ -64,8 +62,8 @@ def plot_round(
     image_directory: str, 
     round_number: int,
     round: models.Round,
-    vision_graphs: list[nx.Graph],
-    vision_traces: list[dict[int, mathing.VisionTraceResults]],
+    vision_graphs: "list[nx.Graph]",
+    vision_traces: "list[dict[int, mathing.VisionTraceResults]]",
     map_name: str, 
     map_type: str = "simpleradar", 
     dark: bool = False, 
@@ -116,14 +114,14 @@ def plot_round(
 
 def plot_frame(
     frame: models.Frame, 
-    grenade_throwers: dict[int, str], 
+    grenade_throwers: "dict[int, str]", 
     map_graph: nx.Graph, 
-    vision_trace_results: dict[int, mathing.VisionTraceResults],
+    vision_trace_results: "dict[int, mathing.VisionTraceResults]",
     map_name: str, 
     map_type: str, 
     dark: bool, 
     show_tiles: bool = True
-    ) -> tuple[Figure, Axes]:
+    ) -> "tuple[Figure, Axes]":
     """
     Plots a frame and returns the figure, axes, and the map graph (containing area controlled information).
     CTs are blue, Ts are orange, and the bomb is an octagon.

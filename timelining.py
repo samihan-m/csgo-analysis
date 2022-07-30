@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import models
 import numpy as np
+from typing import Optional, Tuple, Dict, List
 
 @dataclass
 class Position:
@@ -131,8 +132,8 @@ class PlayerConnectionEvent():
 class Weapon:
     name: str
     weapon_class: str
-    ammo_in_magazine: int | None
-    ammo_in_reserve: int | None
+    ammo_in_magazine: Optional[int]
+    ammo_in_reserve: Optional[int]
 
     def __str__(self) -> str:
         return f"{self.name} ({self.weapon_class}) with {self.ammo_in_magazine} rounds in magazine and {self.ammo_in_reserve} rounds in reserve"
@@ -144,7 +145,7 @@ class KillEvent(Event):
     """
     attacker: PositionedPlayerWithView
     victim: PositionedPlayerWithView
-    assister: Player | None
+    assister: Optional[Player]
     is_suicide: bool
     is_teamkill: bool
     is_wallbang: bool
@@ -153,12 +154,12 @@ class KillEvent(Event):
     is_headshot: bool
     is_victim_blinded: bool
     is_attacker_blinded: bool
-    flash_thrower: Player | None
+    flash_thrower: Optional[Player]
     is_no_scope: bool
     is_through_smoke: bool
     distance: float
     # is_trade: bool # Can just check if player_traded is None or not
-    player_traded: Player | None
+    player_traded: Optional[Player]
     weapon: Weapon
 
     def __str__(self) -> str:
@@ -317,8 +318,8 @@ class DirectionChangeEvent(PlayerMovementEvent):
     """
     When a player changes direction by a significant amount
     """
-    old_velocity: tuple[float, float, float]
-    new_velocity: tuple[float, float, float]
+    old_velocity: Tuple[float, float, float]
+    new_velocity: Tuple[float, float, float]
 
     def __str__(self) -> str:
         return f"{self.player} significantly changed movement direction from {self.old_velocity} to {self.new_velocity}"
@@ -410,10 +411,10 @@ class InventoryChangeEvent(Event):
     Note: (a player firing their gun changes their inventory as a weapon with 1 less bullet in the magazine counts as a new gun)
     """
     player: PositionedPlayer
-    old_inventory: list[Weapon]
-    updated_inventory: list[Weapon]
+    old_inventory: List[Weapon]
+    updated_inventory: List[Weapon]
 
-    def get_inventory_difference(self) -> dict[str, list[Weapon]]:
+    def get_inventory_difference(self) -> Dict[str, List[Weapon]]:
         return {
             "gained": [weapon for weapon in self.updated_inventory if weapon not in self.old_inventory],
             "lost": [weapon for weapon in self.old_inventory if weapon not in self.updated_inventory],
@@ -568,7 +569,7 @@ class RoundEndEvent():
 
 @dataclass
 class Timeline:
-    events: list[Event]
+    events: List[Event]
     # TODO: Add more stuff here as necessary
 
     def __str__(self) -> str:
@@ -579,7 +580,7 @@ class Game:
     """
     The structure/purpose of this class is super undecided so figure it out later TODO
     """
-    players: list[Player]
+    players: List[Player]
     timeline: Timeline
 
 def create_timeline(demo: models.Demo) -> Timeline:
@@ -685,7 +686,7 @@ def create_timeline(demo: models.Demo) -> Timeline:
                     y=kill.victim_view_y,
                 )
             )
-            assister: Player | None = None
+            assister: Optional[Player] = None
             if kill.assister_steam_id is not None:
                 assister = Player(
                     steam_id=kill.assister_steam_id,
@@ -693,7 +694,7 @@ def create_timeline(demo: models.Demo) -> Timeline:
                     side=Side.from_acronym(kill.assister_side),
                     name=kill.assister_name,
                 )
-            flash_thrower: Player | None = None
+            flash_thrower: Optional[Player] = None
             if kill.flash_thrower_steam_id is not None:
                 flash_thrower = Player(
                     steam_id=kill.flash_thrower_steam_id,
@@ -701,7 +702,7 @@ def create_timeline(demo: models.Demo) -> Timeline:
                     side=Side.from_acronym(kill.flash_thrower_side),
                     name=kill.flash_thrower_name,
                 )
-            player_traded: Player | None = None
+            player_traded: Optional[Player] = None
             if kill.player_traded_steam_id is not None:
                 player_traded = Player(
                     steam_id=kill.player_traded_steam_id,

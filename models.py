@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional, List
 
 @dataclass
 class ParserParameters:
@@ -32,18 +33,18 @@ class ServerVars:
 
 @dataclass
 class MatchPhases:
-    announcement_last_round_half: list[int]
-    announcement_final_round: list[int]
-    announcement_match_started: list[int]
-    round_started: list[int]
-    round_ended: list[int]
-    round_freeze_time_ended: list[int]
-    round_ended_official: list[int]
-    game_half_ended: list[int]
-    match_start: list[int]
-    match_started_changed: list[int]
-    warmup_changed: list[int]
-    team_switch: list[int]
+    announcement_last_round_half: List[int]
+    announcement_final_round: List[int]
+    announcement_match_started: List[int]
+    round_started: List[int]
+    round_ended: List[int]
+    round_freeze_time_ended: List[int]
+    round_ended_official: List[int]
+    game_half_ended: List[int]
+    match_start: List[int]
+    match_started_changed: List[int]
+    warmup_changed: List[int]
+    team_switch: List[int]
 
 @dataclass
 class PlayerConnection:
@@ -59,7 +60,7 @@ class Player:
 @dataclass
 class Team:
     team_name: str
-    players: list[Player]
+    players: List[Player]
 
 @dataclass
 class Kill:
@@ -84,10 +85,10 @@ class Kill:
     victim_z: float
     victim_view_x: float
     victim_view_y: float
-    assister_steam_id: int | None
-    assister_name: str | None
-    assister_team: str | None
-    assister_side: str | None
+    assister_steam_id: Optional[int]
+    assister_name: Optional[str]
+    assister_team: Optional[str]
+    assister_side: Optional[str]
     is_suicide: bool
     is_teamkill: bool
     is_wallbang: bool
@@ -96,17 +97,17 @@ class Kill:
     is_headshot: bool
     is_victim_blinded: bool
     is_attacker_blinded: bool
-    flash_thrower_steam_id: int | None
-    flash_thrower_name: str | None
-    flash_thrower_team: str | None
-    flash_thrower_side: str | None
+    flash_thrower_steam_id: Optional[int]
+    flash_thrower_name: Optional[str]
+    flash_thrower_team: Optional[str]
+    flash_thrower_side: Optional[str]
     is_no_scope: bool
     is_through_smoke: bool
     distance: float
     is_trade: bool
-    player_traded_name: str | None
-    player_traded_team: str | None
-    player_traded_steam_id: int | None
+    player_traded_name: Optional[str]
+    player_traded_team: Optional[str]
+    player_traded_steam_id: Optional[int]
     weapon: str
     weapon_class: str
 
@@ -269,7 +270,7 @@ class PlayerFrameState:
     is_scoped: bool
     is_walking: bool
     is_unknown: bool # What is this? LOL
-    inventory: list[Weapon] | None
+    inventory: Optional[List[Weapon]]
     spotters: list # I don't know what this is a list of yet TODO
     equipment_value: int
     equipment_value_freeze_time_end: int
@@ -299,7 +300,7 @@ class TeamFrameState:
     team_eq_val: int # The value of the team's equipment
     alive_players: int
     total_utility: int # The amount of utility items the team owns
-    players: list[PlayerFrameState]
+    players: List[PlayerFrameState]
 
 @dataclass
 class Bomb:
@@ -340,9 +341,9 @@ class Frame:
     bomb_planted: bool
     bomb_site: str
     bomb: Bomb
-    projectiles: list[Projectile]
-    smokes: list[Smoke]
-    fires: list[Fire]
+    projectiles: List[Projectile]
+    smokes: List[Smoke]
+    fires: List[Fire]
 
 @dataclass
 class Round:
@@ -352,7 +353,7 @@ class Round:
     freeze_time_end_tick: int
     end_tick: int
     end_official_tick: int # The official end tick of the round is 5 frames after the end tick ((end_official_tick - end_tick)/demo.tick_rate = 5) 
-    bomb_plant_tick: int | None
+    bomb_plant_tick: Optional[int]
     t_score: int
     ct_score: int
     end_t_score: int
@@ -373,13 +374,13 @@ class Round:
     t_buy_type: str # A description of the T team's buy type (i.e. "Full Eco")
     ct_side: Team
     t_side: Team
-    kills: list[Kill]
-    damages: list[Damage]
-    grenades: list[Grenade]
-    bomb_events: list[BombEvent]
-    weapon_fires: list[WeaponFire]
-    flashes: list[Flash]
-    frames: list[Frame]
+    kills: List[Kill]
+    damages: List[Damage]
+    grenades: List[Grenade]
+    bomb_events: List[BombEvent]
+    weapon_fires: List[WeaponFire]
+    flashes: List[Flash]
+    frames: List[Frame]
 
 @dataclass
 class Demo:
@@ -394,11 +395,11 @@ class Demo:
     server_vars: ServerVars
     match_phases: MatchPhases
     matchmaking_ranks: list # Not sure what the type of is so not specifying
-    player_connections: list[PlayerConnection]
-    game_rounds: list[Round]
+    player_connections: List[PlayerConnection]
+    game_rounds: List[Round]
 
 def deserialize_demo_data(demo_file_data: dict) -> Demo:
-    player_connections: list[PlayerConnection] = []
+    player_connections: List[PlayerConnection] = []
     for connection in demo_file_data["playerConnections"]:
         player_connections.append(
             PlayerConnection(
@@ -408,12 +409,12 @@ def deserialize_demo_data(demo_file_data: dict) -> Demo:
             )
         )
 
-    game_rounds: list[Round] = []
+    game_rounds: List[Round] = []
     for round in demo_file_data["gameRounds"]:
         ct_side: Team
         t_side: Team
 
-        ct_players: list[Player] = []
+        ct_players: List[Player] = []
         for player in round["ctSide"]["players"]:
             ct_players.append(Player(
                 player_name=player["playerName"],
@@ -424,7 +425,7 @@ def deserialize_demo_data(demo_file_data: dict) -> Demo:
             players=ct_players,
         )
 
-        t_players: list[Player] = []
+        t_players: List[Player] = []
         for player in round["tSide"]["players"]:
             t_players.append(Player(
                 player_name=player["playerName"],
@@ -435,7 +436,7 @@ def deserialize_demo_data(demo_file_data: dict) -> Demo:
             players=t_players,
         )
 
-        kills: list[Kill] = []
+        kills: List[Kill] = []
         for kill in round["kills"]:
             kills.append(Kill(
                 tick=kill["tick"],
@@ -486,7 +487,7 @@ def deserialize_demo_data(demo_file_data: dict) -> Demo:
                 weapon_class=kill["weaponClass"],
             ))
 
-        damages: list[Damage] = []
+        damages: List[Damage] = []
         for damage in round["damages"]:
             damages.append(Damage(
                 tick=damage["tick"],
@@ -523,7 +524,7 @@ def deserialize_demo_data(demo_file_data: dict) -> Demo:
                 zoom_level=damage["zoomLevel"],
             ))
 
-        grenades: list[Grenade] = []
+        grenades: List[Grenade] = []
         for grenade in round["grenades"]:
             grenades.append(Grenade(
                 throw_tick=grenade["throwTick"],
@@ -546,7 +547,7 @@ def deserialize_demo_data(demo_file_data: dict) -> Demo:
                 entity_id=grenade["entityId"],
             ))
 
-        bomb_events: list[BombEvent] = []
+        bomb_events: List[BombEvent] = []
         for bomb_event in round["bombEvents"]:
             bomb_events.append(BombEvent(
                 tick=bomb_event["tick"],
@@ -562,7 +563,7 @@ def deserialize_demo_data(demo_file_data: dict) -> Demo:
                 bomb_site=bomb_event["bombSite"],
             ))
 
-        weapon_fires: list[WeaponFire] = []
+        weapon_fires: List[WeaponFire] = []
         for weapon_fire in round["weaponFires"]:
             weapon_fires.append(WeaponFire(
                 tick=weapon_fire["tick"],
@@ -585,7 +586,7 @@ def deserialize_demo_data(demo_file_data: dict) -> Demo:
                 zoom_level=weapon_fire["zoomLevel"],
             ))
 
-        flashes: list[Flash] = []
+        flashes: List[Flash] = []
         for flash in round["flashes"]:
             flashes.append(Flash(
                 tick=flash["tick"],
@@ -612,13 +613,13 @@ def deserialize_demo_data(demo_file_data: dict) -> Demo:
                 flash_duration=flash["flashDuration"],
             ))
 
-        frames: list[Frame] = []
+        frames: List[Frame] = []
         for frame in round["frames"]:
             t: TeamFrameState
             
-            t_players: list[PlayerFrameState] = []
+            t_players: List[PlayerFrameState] = []
             for player in frame["t"]["players"]:
-                inventory: list[Weapon] = []
+                inventory: List[Weapon] = []
                 for weapon in player["inventory"] or []:
                     inventory.append(Weapon(
                         weapon_name=weapon["weaponName"],
@@ -685,9 +686,9 @@ def deserialize_demo_data(demo_file_data: dict) -> Demo:
 
             ct: TeamFrameState
             
-            ct_players: list[PlayerFrameState] = []
+            ct_players: List[PlayerFrameState] = []
             for player in frame["ct"]["players"]:
-                inventory: list[Weapon] = []
+                inventory: List[Weapon] = []
                 for weapon in player["inventory"] or []:
                     inventory.append(Weapon(
                         weapon_name=weapon["weaponName"],
@@ -752,7 +753,7 @@ def deserialize_demo_data(demo_file_data: dict) -> Demo:
                 players=ct_players,
             )
 
-            projectiles: list[Projectile] = []
+            projectiles: List[Projectile] = []
             for projectile in frame["projectiles"]:
                 projectiles.append(Projectile(
                     projectile_type=projectile["projectileType"],
@@ -761,7 +762,7 @@ def deserialize_demo_data(demo_file_data: dict) -> Demo:
                     z=projectile["z"],
                 ))
 
-            smokes: list[Smoke] = []
+            smokes: List[Smoke] = []
             for smoke in frame["smokes"]:
                 smokes.append(Smoke(
                     grenade_entity_id=smoke["grenadeEntityID"],
@@ -771,7 +772,7 @@ def deserialize_demo_data(demo_file_data: dict) -> Demo:
                     z=smoke["z"],
                 ))
 
-            fires: list[Fire] = []
+            fires: List[Fire] = []
             for fire in frame["fires"]:
                 fires.append(Fire(
                     unique_id=fire["uniqueID"],

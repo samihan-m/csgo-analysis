@@ -161,3 +161,5 @@ csgo_tmp/
 visualizations/
 *.prof
 old gifs/
+build-38/
+dist-38/

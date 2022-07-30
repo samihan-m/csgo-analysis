@@ -12,9 +12,9 @@ class VisionTraceResults:
     The first angle in angled_traced is a straight line forward from where the player is looking.
     (and the first value in end_points is the first wall the player's vision ray encounters.)
     """
-    angles_traced: list[float] = field(default_factory=list) # In degrees
-    end_points: list[tuple[float, float, float]] = field(default_factory=list)
-    visible_area_ids: list[int] = field(default_factory=list)
+    angles_traced: "list[float]" = field(default_factory=list) # In degrees
+    end_points: "list[tuple[float, float, float]]" = field(default_factory=list)
+    visible_area_ids: "list[int]" = field(default_factory=list)
 
 def trace_vision(player: models.PlayerFrameState, frame: models.Frame, map_name: str, fov: int = 90, ray_count: int = 30, step_size: int = 20) -> VisionTraceResults:
     """
@@ -84,7 +84,7 @@ def trace_vision(player: models.PlayerFrameState, frame: models.Frame, map_name:
 
     return trace_results
 
-def calculate_vision_graph(frame: models.Frame, map_name: str) -> tuple[nx.Graph, dict]:
+def calculate_vision_graph(frame: models.Frame, map_name: str) -> "tuple[nx.Graph, dict]":
     """
     Returns a map graph with each node containing information about who is viewing it
     Also returns a map of player steam_id to their entire VisionTraceResults object
@@ -199,7 +199,7 @@ def get_tile_area(area_id: int, map_name: str) -> float:
     return np.prod(dimensions)
 
 
-def calculate_controlled_area_sizes(map_graph: nx.Graph, map_name: str) -> dict[str, float]:
+def calculate_controlled_area_sizes(map_graph: nx.Graph, map_name: str) -> "dict[str, float]":
     """
     Returns a map of area_id to the number of players that are in that area
     """
