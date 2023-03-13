@@ -11,6 +11,8 @@ import os
 import csv
 from dataclasses import fields
 import shutil
+from parsing_2 import WritableRoundRow, RoundInfo, PlayerInfo, AvailableUtility, PerformanceScore, FrameInfo
+import awpy.types
 
 def extract_demo_data() -> None:
     """
@@ -118,41 +120,185 @@ def extract_demo_data() -> None:
                 writer.writerow([tick, controlled_area_size_dict["CT"], controlled_area_size_dict["T"]])
         print("Area controlled data saved.")
 
-    # print("Extracting player location information, please wait...")
-    # player_information = parsing.extract_player_information(parsed_demo_data)
-    # print("Extracted player location information.")
-    # print(f"Saving to {output_file_path}")
-    # parsing.write_player_information_to_csv(player_information, output_directory+"/player_locations.csv")
-    # print("Wrote player location information to output file.")
-
-    # print("Extracting team area controlled information, please wait...")
-    # area_data = mathing.get_area_controlled_information_for_game(parsed_demo_data)
-    # print("Extracted team area controlled information.")
-    # print("Select to where you would like the output .csv file to save (see new window):")
-    # output_file_path = get_csv_output_file_name()
-    # print(f"Saving to {output_file_path}")
-    # parsing.write_area_controlled_information_to_csv(area_data, output_file_path)
-    # print("Wrote team area controlled information to output file.")
-
-    # do_save_gifs: bool = None
-    # while do_save_gifs is None:
-    #     print("Would you like to save .gifs of each round visualizing player locations? (This will take some time.) (Y/N)")
-    #     user_input = input("Enter your choice: ").upper()
-    #     if user_input not in ["Y", "N"]:
-    #         print("Invalid input. Please try again.")
-    #         continue
-    #     if user_input == "Y":
-    #         do_save_gifs = True
-    #     if user_input == "N":
-    #         do_save_gifs = False
-    # if do_save_gifs is True:
-    #     print("Select the directory where you would like the .gif files to be saved (see new window):")
-    #     gif_output_directory = get_gif_output_directory()
-    #     print(f"Saving .gifs to {gif_output_directory}")
-    #     plotting.plot_rounds(parsed_demo_data, gif_output_directory)
-    #     print("Saved .gifs.")
-
     print(f"Done saving the game! Check the {output_directory} folder for the output files.")
+
+
+def parsing_2() -> None:
+    """
+    Run the main 'extract data' routine in console mode
+    """
+
+    root = tk.Tk()
+    # To open file dialog in a new window on top of everything else instead of behind everything else
+    root.wm_attributes('-topmost', 1)
+    root.withdraw()
+
+    print("Select the .dem file from which you would like to extract the data (see new window):")
+    input_file_path = filedialog.askopenfilename(title="Open a .dem file",filetypes=[("demo files", "*.dem")])
+    if input_file_path == "":
+        print("No file selected, cancelling.")
+        return
+    print("Extracting data from file: " + input_file_path)
+
+    print("Select the directory in which you would like to save the .csv files (see new window):")
+    output_directory = filedialog.askdirectory(initialdir=os.getcwd(), title="Choose where you want the .csv and .gif files to be saved:")
+    if output_directory == "":
+        print("No directory selected, cancelling.")
+        return
+    print("Saving data to directory: " + output_directory)
+
+    if os.path.isdir(output_directory) is False:
+        print("Output directory does not exist. Creating directory.")
+        os.mkdir(output_directory)
+
+    print("Beginning data extraction...")
+    print(f"Loading demo file at {input_file_path}, please wait...")
+    game_data = parsing.parse_demo_file(input_file_path)
+    print("Loaded demo file.")
+    print("Compartmentalizing round-specific information.")
+    
+    all_round_info: list[RoundInfo] = []
+
+    for round_index, game_round in enumerate(tqdm(game_data["gameRounds"])):
+
+        tqdm.write(f"Processing round {round_index}")
+
+        round_info: RoundInfo = {
+            "roundNumber": game_round["roundNum"],
+            "frameInfo": [],
+            "performanceScores": [],
+        }
+
+        ct_side_players = game_round["ctSide"]["players"]
+        t_side_players = game_round["tSide"]["players"]
+        ct_side_player_names = [player["playerName"] for player in ct_side_players]
+        t_side_player_names = [player["playerName"] for player in t_side_players]
+        all_players: list[awpy.types.Players] = ct_side_players + t_side_players
+        winning_side = game_round["winningSide"]
+
+        for player in all_players:
+            performance_info: PerformanceScore = {
+                "playerName": "",
+                "didWin": False,
+                "rawHpDamageDealt": 0,
+                "hpDamageDealt": 0,
+                "rawArmorDamageDealt": 0,
+                "armorDamageDealt": 0,
+            }
+
+            player_name = player["playerName"]
+            performance_info["playerName"] = player_name
+
+            if winning_side == "CT":
+                if player_name in ct_side_player_names:
+                    performance_info["didWin"] = True
+            else:
+                if player_name in t_side_player_names:
+                    performance_info["didWin"] = True
+
+            for damage in game_round["damages"]:
+                if damage["attackerName"] == player_name:
+                    performance_info["rawHpDamageDealt"] += damage["hpDamage"]
+                    performance_info["hpDamageDealt"] += damage["hpDamageTaken"]
+                    performance_info["rawArmorDamageDealt"] += damage["armorDamage"]
+                    performance_info["armorDamageDealt"] += damage["armorDamageTaken"]
+
+            round_info["performanceScores"].append(performance_info)
+            
+
+        for frame_index, frame in enumerate(game_round["frames"]):
+            frame_info: FrameInfo = {
+                "frameNumber": frame_index,
+                "tick": frame["tick"],
+                "playerInfo": [],
+            }
+            
+            ct_info = frame["ct"]
+            t_info = frame["t"]
+
+            ct_players = ct_info["players"]
+            t_players = t_info["players"]
+            all_player_info: list[awpy.types.PlayerInfo] = ct_players + t_players
+
+            for player_info in all_player_info:
+                player_data: PlayerInfo = {
+                    "playerName": player_info["name"],
+                    "money": player_info["cash"],
+                    "availableUtilities": [],
+                    "velocityX": player_info["velocityX"],
+                    "velocityY": player_info["velocityY"],
+                    "velocityZ": player_info["velocityZ"],
+                }
+
+                current_utility_count = 0
+                for utility_type in ["heGrenades", "fireGrenades", "smokeGrenades", "flashGrenades"]:
+                    available_utility: AvailableUtility = {
+                        "name": utility_type,
+                        "quantity": player_info[utility_type],
+                    }
+                    current_utility_count += player_info[utility_type]
+                    
+                    player_data["availableUtilities"].append(available_utility)
+                # Because decoy grenades don't seem to be counted, assuming any utility items that aren't accounted for are decoy grenades
+                if current_utility_count != player_info["totalUtility"]:
+                    available_decoy: AvailableUtility = {
+                        "name": "decoyGrenades",
+                        "quantity": player_info["totalUtility"] - current_utility_count,
+                    }
+                    player_data["availableUtilities"].append(available_decoy)
+
+                frame_info["playerInfo"].append(player_data)
+
+            round_info["frameInfo"].append(frame_info)
+
+        all_round_info.append(round_info)
+
+    writable_round_rows: list[list[WritableRoundRow]] = []
+    
+    for round_info in all_round_info:
+        round_rows: list[WritableRoundRow] = []
+        for frame_info in round_info["frameInfo"]:
+            for player_info in frame_info["playerInfo"]:
+
+                performance_score_info = [score_dict for score_dict in round_info["performanceScores"] if score_dict["playerName"] == player_info["playerName"]][0]
+
+                round_row: WritableRoundRow = {
+                    "roundNumber": round_info["roundNumber"], 
+                    "frameNumber": frame_info["frameNumber"], 
+                    "tick": frame_info["tick"], 
+                    "playerName": player_info["playerName"],
+                    "money": player_info["money"], 
+                    "velocityX": player_info["velocityX"], 
+                    "velocityY": player_info["velocityY"], 
+                    "velocityZ": player_info["velocityZ"], 
+                    "decoyGrenadeCount": sum([grenade.quantity for grenade in player_info["availableUtilities"] if grenade["name"] == "decoyGrenade"]), 
+                    "fireGrenadeCount": sum([grenade.quantity for grenade in player_info["availableUtilities"] if grenade["name"] == "fireGrenade"]), 
+                    "flashGrenadeCount": sum([grenade.quantity for grenade in player_info["availableUtilities"] if grenade["name"] == "flashGrenade"]), 
+                    "heGrenadeCount": sum([grenade.quantity for grenade in player_info["availableUtilities"] if grenade["name"] == "heGrenade"]), 
+                    "smokeGrenadeCount": sum([grenade.quantity for grenade in player_info["availableUtilities"] if grenade["name"] == "smokeGrenade"]), 
+                    "didWin": performance_score_info["didWin"], 
+                    "rawHpDamageDealtInRound": performance_score_info["rawHpDamageDealt"], 
+                    "hpDamageDealtInRound": performance_score_info["hpDamageDealt"], 
+                    "rawArmorDamageDealtInRound": performance_score_info["rawArmorDamageDealt"], 
+                    "armorDamageDealtInRound": performance_score_info["armorDamageDealt"]
+                }
+
+                round_rows.append(round_row)
+        writable_round_rows.append(round_rows)  
+
+    print("Writing round-specific information to csv files.")
+
+    for round_index, round_rows in enumerate(tqdm(writable_round_rows)):
+        csv_file_name: str = f"{output_directory}/round_{round_index}.csv"
+        with open(csv_file_name, "w", newline="") as file:
+            writer = csv.writer(file)
+            all_fields: list[str] = [key for key in list(WritableRoundRow.__annotations__.keys())]
+            writer.writerow(all_fields)
+            for row in round_rows:
+                writer.writerow([row[key] for key in row])
+        tqdm.write(f"Saved csv file for round {round_index} at {csv_file_name}")
+
+    print(f"Done writing csv files. Check the {output_directory} folder for the output files.")
     
 def main() -> None:
     """
@@ -164,14 +310,18 @@ def main() -> None:
         print("Select an option:")
         print("""1. Extract data from a .dem file, creating .csv files for game events and team area controlled, 
         as well as .gifs for visualizing the area controlled by each team.""")
+        print("""2. Extract data from a .dem file, creating a .csv file per round of the game that contains 
+        economy, utility, player movement, and player performance data.""")
         print("Q. Quit")
         user_input = input("Enter your choice: ").upper()
-        if user_input not in ["1", "Q"]:
+        if user_input not in ["1", "2", "Q"]:
             print("Invalid input. Please try again.")
             continue
         if user_input == "1":
             extract_demo_data()
-        if user_input == "Q":
+        elif user_input == "2":
+            parsing_2()
+        elif user_input == "Q":
             do_quit = True
             input("Closing. Press ENTER to continue.")
             return

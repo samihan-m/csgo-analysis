@@ -1,7 +1,8 @@
 from awpy.parser import DemoParser
+from awpy.types import Game
 
 
-def parse_demo_file(demo_file_name: str) -> dict:
+def parse_demo_file(demo_file_name: str) -> Game:
     """
     Given a demo file name, parse it and return the data
     """
@@ -9,4 +10,4 @@ def parse_demo_file(demo_file_name: str) -> dict:
     p = DemoParser(demofile=demo_file_name, parse_rate=128, parse_frames=True)
     data = p.parse()
     return data
-    
+   
