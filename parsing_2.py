@@ -18,7 +18,11 @@ class AvailableUtility(TypedDict):
 class PlayerInfo(TypedDict):
     playerName: str
     money: int
+    equippedWeapon: str
     availableUtilities: list[AvailableUtility]
+    positionX: float
+    positionY: float
+    positionZ: float
     velocityX: float
     velocityY: float
     velocityZ: float
@@ -39,6 +43,10 @@ class WritableRoundRow(TypedDict):
     tick: int
     playerName: str 
     money: int
+    equippedWeapon: str
+    positionX: float
+    positionY: float
+    positionZ: float
     velocityX: float
     velocityY: float
     velocityZ: float

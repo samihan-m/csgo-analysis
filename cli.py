@@ -156,7 +156,7 @@ def parsing_2() -> None:
     game_data = parsing.parse_demo_file(input_file_path)
     print("Loaded demo file.")
     print("Compartmentalizing round-specific information.")
-    
+
     all_round_info: list[RoundInfo] = []
 
     for round_index, game_round in enumerate(tqdm(game_data["gameRounds"])):
@@ -224,7 +224,11 @@ def parsing_2() -> None:
                 player_data: PlayerInfo = {
                     "playerName": player_info["name"],
                     "money": player_info["cash"],
+                    "equippedWeapon": player_info["activeWeapon"],
                     "availableUtilities": [],
+                    "positionX": player_info["x"],
+                    "positionY": player_info["y"],
+                    "positionZ": player_info["z"],
                     "velocityX": player_info["velocityX"],
                     "velocityY": player_info["velocityY"],
                     "velocityZ": player_info["velocityZ"],
@@ -239,13 +243,16 @@ def parsing_2() -> None:
                     current_utility_count += player_info[utility_type]
                     
                     player_data["availableUtilities"].append(available_utility)
-                # Because decoy grenades don't seem to be counted, assuming any utility items that aren't accounted for are decoy grenades
-                if current_utility_count != player_info["totalUtility"]:
-                    available_decoy: AvailableUtility = {
-                        "name": "decoyGrenades",
-                        "quantity": player_info["totalUtility"] - current_utility_count,
-                    }
-                    player_data["availableUtilities"].append(available_decoy)
+
+                # Manually check for decoy grenades because AWPY doesn't provide that information
+                if player_info["inventory"] is not None:
+                    for weapon in player_info["inventory"]:
+                        if weapon["weaponName"] == "Decoy Grenade":
+                            available_utility: AvailableUtility = {
+                                "name": "decoyGrenades",
+                                "quantity": weapon["ammoInMagazine"],
+                            }
+                            player_data["availableUtilities"].append(available_utility)
 
                 frame_info["playerInfo"].append(player_data)
 
@@ -268,14 +275,18 @@ def parsing_2() -> None:
                     "tick": frame_info["tick"], 
                     "playerName": player_info["playerName"],
                     "money": player_info["money"], 
+                    "equippedWeapon": player_info["equippedWeapon"], 
+                    "positionX": player_info["positionX"],
+                    "positionY": player_info["positionY"],
+                    "positionZ": player_info["positionZ"],
                     "velocityX": player_info["velocityX"], 
                     "velocityY": player_info["velocityY"], 
                     "velocityZ": player_info["velocityZ"], 
-                    "decoyGrenadeCount": sum([grenade.quantity for grenade in player_info["availableUtilities"] if grenade["name"] == "decoyGrenade"]), 
-                    "fireGrenadeCount": sum([grenade.quantity for grenade in player_info["availableUtilities"] if grenade["name"] == "fireGrenade"]), 
-                    "flashGrenadeCount": sum([grenade.quantity for grenade in player_info["availableUtilities"] if grenade["name"] == "flashGrenade"]), 
-                    "heGrenadeCount": sum([grenade.quantity for grenade in player_info["availableUtilities"] if grenade["name"] == "heGrenade"]), 
-                    "smokeGrenadeCount": sum([grenade.quantity for grenade in player_info["availableUtilities"] if grenade["name"] == "smokeGrenade"]), 
+                    "decoyGrenadeCount": sum([grenade["quantity"] for grenade in player_info["availableUtilities"] if grenade["name"] == "decoyGrenades"]), 
+                    "fireGrenadeCount": sum([grenade["quantity"] for grenade in player_info["availableUtilities"] if grenade["name"] == "fireGrenades"]), 
+                    "flashGrenadeCount": sum([grenade["quantity"] for grenade in player_info["availableUtilities"] if grenade["name"] == "flashGrenades"]), 
+                    "heGrenadeCount": sum([grenade["quantity"] for grenade in player_info["availableUtilities"] if grenade["name"] == "heGrenades"]), 
+                    "smokeGrenadeCount": sum([grenade["quantity"] for grenade in player_info["availableUtilities"] if grenade["name"] == "smokeGrenades"]), 
                     "didWin": performance_score_info["didWin"], 
                     "rawHpDamageDealtInRound": performance_score_info["rawHpDamageDealt"], 
                     "hpDamageDealtInRound": performance_score_info["hpDamageDealt"], 
@@ -297,6 +308,59 @@ def parsing_2() -> None:
             for row in round_rows:
                 writer.writerow([row[key] for key in row])
         tqdm.write(f"Saved csv file for round {round_index} at {csv_file_name}")
+
+    print("Writing round-specific action information to csv files.")
+
+    # Per round, read kills, damages, bombEvents, startTick, endTick, endOfficialTick (and initial player money if possible)
+    for round_index, game_round in enumerate(tqdm(game_data["gameRounds"])):
+        kills: list[awpy.types.KillAction] = game_round["kills"]
+        damages: list[awpy.types.DamageAction] = game_round["damages"]
+        bomb_events: list[awpy.types.BombAction] = game_round["bombEvents"]
+        tick_info = {
+            "startTick": game_round["startTick"],
+            "endTick": game_round["endTick"],
+            "endOfficialTick": game_round["endOfficialTick"]
+        }
+
+        info_to_write: list = [*kills, *damages, *bomb_events, tick_info]
+        all_fields: list = ["tick", "actionType"]
+        for obj in info_to_write:
+            keys = sorted(obj.keys())
+            for key in keys:
+                if key not in all_fields:
+                    all_fields.append(key)
+
+        csv_file_name: str = f"{output_directory}/round_{round_index}_actions.csv"
+        with open(csv_file_name, "w", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=all_fields)
+
+            # Write the header row to the file
+            writer.writeheader()
+
+            # Loop over the list of mixed objects and write each row to the CSV file
+            for obj in kills:
+                default_dict = {field: '' for field in writer.fieldnames}
+                default_dict["actionType"] = "kill"
+                default_dict.update(obj)
+                writer.writerow(default_dict)
+
+            for obj in damages:
+                default_dict = {field: '' for field in writer.fieldnames}
+                default_dict["actionType"] = "damage"
+                default_dict.update(obj)
+                writer.writerow(default_dict)
+            
+            for obj in bomb_events:
+                default_dict = {field: '' for field in writer.fieldnames}
+                default_dict["actionType"] = "bombEvent"
+                default_dict.update(obj)
+                writer.writerow(default_dict)
+
+            for obj in [tick_info]:
+                default_dict = {field: '' for field in writer.fieldnames}
+                default_dict["actionType"] = "roundTickInfo"
+                default_dict.update(obj)
+                writer.writerow(default_dict)
 
     print(f"Done writing csv files. Check the {output_directory} folder for the output files.")
     
