@@ -3,6 +3,10 @@ import awpy.types
 
 from typing import TypedDict
 
+# I used this file to test extracting a new set of data I wasn't extracting before.
+# This file doesn't ever really do anything, as I copied-and-pasted this code into cli.py and modified it there to work better.
+# Leaving this here for progeny.
+
 class PerformanceScore(TypedDict):
     playerName: str
     didWin: bool
