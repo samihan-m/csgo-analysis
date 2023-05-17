@@ -1,3 +1,0 @@
-auto-py-to-exe
-
-pyinstaller --noconfirm --onedir --console --icon "D:/Samihan/Documents/Programming/Python Projects/CSGO Demo Parsing/csgo.ico" --add-data "D:/Samihan/Documents/Programming/Python Projects/CSGO Demo Parsing/venv/Lib/site-packages/awpy/parser/go.mod;." --add-data "D:/Samihan/Documents/Programming/Python Projects/CSGO Demo Parsing/venv/Lib/site-packages/awpy/parser/go.sum;." --add-data "D:/Samihan/Documents/Programming/Python Projects/CSGO Demo Parsing/venv/Lib/site-packages/awpy/parser/parse_demo.go;." --add-data "D:/Samihan/Documents/Programming/Python Projects/CSGO Demo Parsing/venv/Lib/site-packages/awpy/data;awpy/data/" -p "C:/Windows/System32/downlevel" "D:/Samihan/Documents/Programming/Python Projects/CSGO Demo Parsing/cli.py"
