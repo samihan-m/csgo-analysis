@@ -6,6 +6,8 @@ import tkinter as tk
 from tkinter import filedialog
 import os
 
+# Note: This file isn't being worked on anymore. The CLI is easier to work with, so I switched attention to exclusively that.
+
 def get_demo_file_name() -> str:
     """
     Returns the path to the demo file provided by the user

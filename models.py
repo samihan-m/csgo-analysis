@@ -1,5 +1,8 @@
 from dataclasses import dataclass
 
+# NOTE: Most of this file has become obsolete because awpy has added type information to the library.
+# I am not deleting it though because these classes are still used in certain execution paths of the program.
+
 @dataclass
 class ParserParameters:
     parse_rate: int
